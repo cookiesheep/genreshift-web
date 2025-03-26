@@ -15,9 +15,9 @@ const nextConfig = {
   images: {
     domains: ['cdn.jsdelivr.net'],
   },
-  // 启用实验性懒加载
+  // 删除或禁用optimizeCss
   experimental: {
-    optimizeCss: true
+    // optimizeCss: true  // 注释掉或删除这一行
   }
 }
 
