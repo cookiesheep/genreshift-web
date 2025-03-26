@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"sources":["turbopack:///[next]/internal/font/google/inter_92243eee.module.css"],"sourcesContent":["@font-face {\n    font-family: 'Inter Fallback';\n    src: local(\"Arial\");\n    ascent-override: 90.44%;\ndescent-override: 22.52%;\nline-gap-override: 0.00%;\nsize-adjust: 107.12%;\n\n}\n.className {\n    font-family: 'Inter', 'Inter Fallback';\n    font-style: normal;\n\n}\n"],"names":[],"mappings":"AAAA;;;;;;;;;AASA","ignoreList":[0],"debugId":null}}]
-}
