@@ -2,7 +2,6 @@
 
 import { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { motion } from 'framer-motion';
 
 export default function FileUploader({ file, setFile, setFileContent, setError }) {
   const onDrop = useCallback(acceptedFiles => {

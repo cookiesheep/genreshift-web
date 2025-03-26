@@ -11,6 +11,14 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // 提高静态资源优化
+  images: {
+    domains: ['cdn.jsdelivr.net'],
+  },
+  // 启用实验性懒加载
+  experimental: {
+    optimizeCss: true
+  }
 }
 
 module.exports = nextConfig 
