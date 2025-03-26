@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.prose img {
+  margin: 0 auto;
+}
+
+/* 修复Tailwind表单与其他样式的冲突 */
+.prose form {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.prose form label {
+  font-weight: normal;
+}
+
+/* 修复其他可能的样式冲突 */
+.prose button {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* 添加深色模式基础样式 */
+@layer base {
+  :root {
+    --color-bg: 255 255 255;         /* 白色 */
+    --color-text: 17 24 39;          /* 灰色-900 */
+    --color-primary: 79 70 229;      /* 靛蓝-600 */
+  }
+
+  .dark {
+    --color-bg: 17 24 39;            /* 灰色-900 */
+    --color-text: 243 244 246;       /* 灰色-100 */
+    --color-primary: 129 140 248;    /* 靛蓝-400 */
+  }
+
+  body {
+    background-color: rgb(var(--color-bg));
+    color: rgb(var(--color-text));
+  }
+}
+
+/* 修改滚动条样式适配深色模式 */
+::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.5);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(75, 85, 99, 0.5);
+}
+
+/* 修改代码块样式 */
+.prose pre {
+  background-color: rgba(31, 41, 55, 0.05) !important;
+}
+
+.dark .prose pre {
+  background-color: rgba(17, 24, 39, 0.5) !important;
+}

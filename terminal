@@ -1,0 +1,14 @@
+# 安装必要的依赖
+npm install tailwindcss postcss autoprefixer framer-motion react-dropzone axios
+npm install -D @tailwindcss/typography @tailwindcss/forms 
+
+# 初始化Git仓库
+git init
+git add .
+git commit -m "Initial commit"
+
+# 如果您已经有GitHub账户并设置了SSH密钥
+git remote add origin git@github.com:您的用户名/papernews.git
+git push -u origin main
+
+# 然后在Vercel上导入这个仓库 
