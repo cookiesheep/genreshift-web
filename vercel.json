@@ -1,8 +1,6 @@
 {
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/next"
-    }
-  ]
+  "version": 2,
+  "buildCommand": "chmod +x ./node_modules/.bin/next && next build",
+  "installCommand": "npm install",
+  "framework": "nextjs"
 } 
