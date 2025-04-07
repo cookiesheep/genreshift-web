@@ -186,10 +186,16 @@ async function POST(request) {
                 status: 400
             });
         }
+        // 获取环境变量中的API密钥和URL
+        const API_KEY = ("TURBOPACK compile-time value", "sk-364edeb5190543d1ba2d5127d4428e47");
+        const API_URL = ("TURBOPACK compile-time value", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions");
+        if ("TURBOPACK compile-time falsy", 0) {
+            "TURBOPACK unreachable";
+        }
         // 测试API密钥是否有效
         try {
             console.log('发送测试请求检查API密钥');
-            const testResponse = await __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$axios$2f$lib$2f$axios$2e$js__$5b$app$2d$route$5d$__$28$ecmascript$29$__["default"].post("https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", {
+            const testResponse = await __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$axios$2f$lib$2f$axios$2e$js__$5b$app$2d$route$5d$__$28$ecmascript$29$__["default"].post(API_URL, {
                 model: "qwen-plus",
                 messages: [
                     {
@@ -204,7 +210,7 @@ async function POST(request) {
             }, {
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer sk-364edeb5190543d1ba2d5127d4428e47`
+                    'Authorization': `Bearer ${API_KEY}`
                 }
             });
             console.log('测试响应:', JSON.stringify(testResponse.data).substring(0, 100));
@@ -233,12 +239,9 @@ ${processedContent}
 重点关注：${parameters.focus === 'general' ? '综合内容' : parameters.focus === 'methodology' ? '研究方法' : parameters.focus === 'results' ? '研究结果' : '研究意义'}
 语言：${parameters.language === 'zh' ? '中文' : '英文'}
     `;
-        // API调用配置
-        const apiKey = process.env.DASHSCOPE_API_KEY || "sk-364edeb5190543d1ba2d5127d4428e47";
-        const apiUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
         console.log('发送主请求到API');
         const controller = new AbortController();
-        const timeoutId = setTimeout(()=>controller.abort(), 60000); // 30秒超时
+        const timeoutId = setTimeout(()=>controller.abort(), 60000); // 60秒超时
         try {
             console.log('接收到API请求，内容长度:', content.length);
             console.log('参数:', JSON.stringify(parameters));
@@ -251,7 +254,7 @@ ${processedContent}
                 });
             }
             // 添加其他参数验证...
-            const response = await __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$axios$2f$lib$2f$axios$2e$js__$5b$app$2d$route$5d$__$28$ecmascript$29$__["default"].post(apiUrl, {
+            const response = await __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$axios$2f$lib$2f$axios$2e$js__$5b$app$2d$route$5d$__$28$ecmascript$29$__["default"].post(API_URL, {
                 model: "qwen-max",
                 messages: [
                     {
@@ -266,7 +269,7 @@ ${processedContent}
             }, {
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
+                    'Authorization': `Bearer ${API_KEY}`
                 },
                 signal: controller.signal
             });
@@ -283,7 +286,7 @@ ${processedContent}
             }
         } catch (apiError) {
             console.error('API请求错误:', apiError.message);
-            console.error('API请求URL:', apiUrl);
+            console.error('API请求URL:', API_URL);
             console.error('请求参数:', {
                 model: "qwen-plus",
                 messages: [
@@ -306,9 +309,11 @@ ${processedContent}
             } else {
                 console.error('请求设置错误:', apiError.message);
             }
-            // 重新抛出或返回模拟响应
+            // 返回错误信息
             return __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$server$2e$js__$5b$app$2d$route$5d$__$28$ecmascript$29$__["NextResponse"].json({
-                result: `# 转换结果（模拟）\n\n## 科技新闻\n\n**突破性研究揭示新发现**\n\n研究人员最近发表了一项关于${parameters.focus}的重要研究。这项研究采用了创新方法，得出了令人振奋的结果。\n\n据研究团队介绍，这一发现可能对未来的科技发展产生深远影响。\n\n此研究发表在著名期刊上，引起了学术界的广泛关注。`
+                error: "API请求失败，请稍后再试"
+            }, {
+                status: 500
             });
         }
     } catch (error) {

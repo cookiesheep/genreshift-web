@@ -8,6 +8,7 @@ import { useDropzone } from 'react-dropzone';
 import axios from 'axios';
 import mammoth from 'mammoth';
 // import * as pdfjsLib from 'pdfjs-dist';
+import { renderMarkdown, generateOfflineContent } from '../utils/offlineSupport';
 
 export default function Workspace() {
   // 状态管理
@@ -20,6 +21,26 @@ export default function Workspace() {
   const [showOriginal, setShowOriginal] = useState(true);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
+  // 添加网络状态检测
+  const [isOnline, setIsOnline] = useState(true);
+  // 添加后备模式状态
+  const [fallbackMode, setFallbackMode] = useState(false);
+  
+  // 检查网络状态
+  useEffect(() => {
+    setIsOnline(navigator.onLine);
+    
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
   
   // 转换参数
   const [parameters, setParameters] = useState({
@@ -184,8 +205,191 @@ export default function Workspace() {
       }));
     };
     
+    // 使用Markdown解析函数
+    const renderMarkdown = (text) => {
+      if (!text) return '';
+      
+      return text
+        .replace(/^# (.*$)/gim, '<h1 class="text-2xl font-bold mb-4 mt-6">$1</h1>')
+        .replace(/^## (.*$)/gim, '<h2 class="text-xl font-bold mb-3 mt-5">$1</h2>')
+        .replace(/^### (.*$)/gim, '<h3 class="text-lg font-bold mb-2 mt-4">$1</h3>')
+        .replace(/\*\*(.*)\*\*/gim, '<strong>$1</strong>')
+        .replace(/\*(.*)\*/gim, '<em>$1</em>')
+        .replace(/^> (.*$)/gim, '<blockquote class="border-l-4 border-gray-200 dark:border-gray-700 pl-4 py-2 my-3 text-gray-600 dark:text-gray-300 italic">$1</blockquote>')
+        // 有序列表
+        .replace(/^(\d+)\. (.*$)/gim, '<div class="ml-5 list-decimal"><li>$2</li></div>')
+        // 无序列表
+        .replace(/^- (.*$)/gim, '<div class="ml-5 list-disc"><li>$1</li></div>')
+        // 代码块
+        .replace(/```([\s\S]*?)```/gim, '<pre class="bg-gray-100 dark:bg-gray-800 p-3 rounded-md my-3 overflow-x-auto"><code>$1</code></pre>')
+        // 链接
+        .replace(/\[(.*?)\]\((.*?)\)/gim, '<a href="$2" class="text-blue-600 dark:text-blue-400 hover:underline" target="_blank">$1</a>')
+        // 段落
+        .replace(/\n\n/gim, '</p><p class="my-2">')
+        .replace(/\n/gim, '<br />');
+    };
+    
+    // 生成本地离线处理结果（当API不可用时）
+    const generateFallbackResult = () => {
+      if (!fileContent) return '';
+      
+      // 提取内容
+      const extractedContent = fileContent.substring(0, 1000);
+      const sentences = extractedContent.split(/[.!?。！？]+/).filter(s => s.trim().length > 0);
+      const keywords = extractCountKeywords(extractedContent);
+      
+      const language = parameters.language === 'zh' ? 'zh' : 'en';
+      const style = parameters.outputStyle;
+      const resultLength = parameters.length;
+      
+      if (language === 'zh') {
+        return generateChineseFallback(sentences, keywords, style, resultLength);
+      } else {
+        return generateEnglishFallback(sentences, keywords, style, resultLength);
+      }
+    };
+    
+    // 提取关键词和出现次数
+    const extractCountKeywords = (text) => {
+      // 简单的关键词提取
+      const words = text.toLowerCase().split(/\s+|[,.;:"'?!，。；：""'？！]/);
+      const stopWords = new Set(['the', 'a', 'an', 'in', 'on', 'at', 'of', 'to', 'and', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'this', 'that', 'these', 'those', '的', '了', '和', '与', '是', '在', '有', '被']);
+      
+      // 统计词频
+      const wordCount = {};
+      words.forEach(word => {
+        if (word.length > 1 && !stopWords.has(word)) {
+          wordCount[word] = (wordCount[word] || 0) + 1;
+        }
+      });
+      
+      // 排序并返回前10个
+      return Object.entries(wordCount)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([word]) => word);
+    };
+    
+    // 生成中文后备内容
+    const generateChineseFallback = (sentences, keywords, style, resultLength) => {
+      // 提取标题
+      const title = sentences[0]?.trim() || '论文概述';
+      
+      // 根据风格选择模板
+      let template = '';
+      
+      if (style === 'news') {
+        template = `# ${title.length > 20 ? title.substring(0, 20) + '...' : title}\n\n`;
+        template += `**关键要点**: ${keywords.slice(0, 5).join('、')}\n\n`;
+        template += `${sentences.slice(0, 3).join('。')}。\n\n`;
+        
+        if (resultLength !== 'short') {
+          template += `## 研究背景\n\n${sentences.slice(3, 5).join('。')}。\n\n`;
+          template += `## 研究方法\n\n据研究团队介绍，他们采用了创新的研究方法进行分析。${sentences.slice(5, 7).join('。')}。\n\n`;
+        }
+        
+        if (resultLength === 'long') {
+          template += `## 研究意义\n\n这项研究对${keywords[0]}领域具有重要意义。${sentences.slice(7, 10).join('。')}。\n\n`;
+          template += `## 未来展望\n\n研究团队表示，未来将继续深入研究这一问题，进一步探索${keywords.slice(1, 3).join('和')}的关系。\n\n`;
+        }
+        
+        template += `*注：本内容由系统离线生成，仅作参考。由于网络原因，无法获取完整的转换结果。*`;
+      } else if (style === 'blog') {
+        template = `# 探索${keywords[0]}的新视角：${title.length > 15 ? title.substring(0, 15) + '...' : title}\n\n`;
+        template += `近期，一项关于${keywords.slice(0, 3).join('、')}的研究引起了我的注意。${sentences.slice(0, 3).join('。')}。\n\n`;
+        
+        if (resultLength !== 'short') {
+          template += `## 为什么这很重要？\n\n${sentences.slice(3, 6).join('。')}。这些发现对于理解${keywords[0]}具有重要意义。\n\n`;
+        }
+        
+        if (resultLength === 'long') {
+          template += `## 深入分析\n\n如果仔细分析这项研究，我们可以发现几个关键点：\n\n- ${keywords[0]}与${keywords[1]}之间存在密切关联\n- 研究方法新颖，采用了创新的分析框架\n- 结果对${keywords[2]}领域提供了新的思路\n\n`;
+          template += `## 我的看法\n\n个人认为，这项研究虽然有价值，但仍有改进空间。未来研究可以更深入地探索${keywords.slice(3, 5).join('和')}的关系。\n\n`;
+        }
+        
+        template += `*注：本内容由系统离线生成，仅作参考。由于网络原因，无法获取完整的转换结果。*`;
+      } else {
+        // 摘要
+        template = `# ${title}摘要\n\n`;
+        template += `**核心概念**: ${keywords.slice(0, 5).join('、')}\n\n`;
+        template += `${sentences.slice(0, 3).join('。')}。\n\n`;
+        
+        if (resultLength !== 'short') {
+          template += `## 主要内容\n\n${sentences.slice(3, 8).join('。')}。\n\n`;
+        }
+        
+        if (resultLength === 'long') {
+          template += `## 研究结论\n\n基于以上内容，研究得出以下结论：\n\n- 关于${keywords[0]}的新发现\n- ${keywords[1]}与${keywords[2]}的关系\n- 对${keywords[3]}理论的验证\n\n`;
+        }
+        
+        template += `*注：本内容由系统离线生成，仅作参考。由于网络原因，无法获取完整的转换结果。*`;
+      }
+      
+      return template;
+    };
+    
+    // 生成英文后备内容
+    const generateEnglishFallback = (sentences, keywords, style, resultLength) => {
+      // 类似的逻辑，但生成英文内容
+      // 提取标题
+      const title = sentences[0]?.trim() || 'Paper Overview';
+      
+      // 根据风格选择模板
+      let template = '';
+      
+      if (style === 'news') {
+        template = `# ${title.length > 20 ? title.substring(0, 20) + '...' : title}\n\n`;
+        template += `**Key Points**: ${keywords.slice(0, 5).join(', ')}\n\n`;
+        template += `${sentences.slice(0, 3).join('. ')}.\n\n`;
+        
+        if (resultLength !== 'short') {
+          template += `## Research Background\n\n${sentences.slice(3, 5).join('. ')}.\n\n`;
+          template += `## Methodology\n\nAccording to the research team, they employed innovative research methods for analysis. ${sentences.slice(5, 7).join('. ')}.\n\n`;
+        }
+        
+        if (resultLength === 'long') {
+          template += `## Significance\n\nThis research has important implications for the field of ${keywords[0]}. ${sentences.slice(7, 10).join('. ')}.\n\n`;
+          template += `## Future Prospects\n\nThe research team stated that they will continue to study this issue in depth, further exploring the relationship between ${keywords.slice(1, 3).join(' and ')}.\n\n`;
+        }
+        
+        template += `*Note: This content is generated offline by the system for reference only. Due to network issues, the complete conversion result cannot be obtained.*`;
+      } else if (style === 'blog') {
+        // Blog style in English
+        template = `# A New Perspective on ${keywords[0]}: ${title.length > 15 ? title.substring(0, 15) + '...' : title}\n\n`;
+        template += `Recently, a study on ${keywords.slice(0, 3).join(', ')} caught my attention. ${sentences.slice(0, 3).join('. ')}.\n\n`;
+        
+        if (resultLength !== 'short') {
+          template += `## Why This Matters\n\n${sentences.slice(3, 6).join('. ')}. These findings are significant for understanding ${keywords[0]}.\n\n`;
+        }
+        
+        if (resultLength === 'long') {
+          template += `## In-Depth Analysis\n\nIf we analyze this research carefully, we can identify several key points:\n\n- There is a close connection between ${keywords[0]} and ${keywords[1]}\n- The research method is novel, using an innovative analytical framework\n- The results provide new insights for the field of ${keywords[2]}\n\n`;
+          template += `## My Take\n\nPersonally, I believe that while this research is valuable, there is still room for improvement. Future research could explore more deeply the relationship between ${keywords.slice(3, 5).join(' and ')}.\n\n`;
+        }
+        
+        template += `*Note: This content is generated offline by the system for reference only. Due to network issues, the complete conversion result cannot be obtained.*`;
+      } else {
+        // Summary in English
+        template = `# Summary of ${title}\n\n`;
+        template += `**Core Concepts**: ${keywords.slice(0, 5).join(', ')}\n\n`;
+        template += `${sentences.slice(0, 3).join('. ')}.\n\n`;
+        
+        if (resultLength !== 'short') {
+          template += `## Main Content\n\n${sentences.slice(3, 8).join('. ')}.\n\n`;
+        }
+        
+        if (resultLength === 'long') {
+          template += `## Research Conclusions\n\nBased on the above content, the study draws the following conclusions:\n\n- New findings about ${keywords[0]}\n- The relationship between ${keywords[1]} and ${keywords[2]}\n- Validation of theories regarding ${keywords[3]}\n\n`;
+        }
+        
+        template += `*Note: This content is generated offline by the system for reference only. Due to network issues, the complete conversion result cannot be obtained.*`;
+      }
+      
+      return template;
+    };
+  
     // 转换论文
-    const convertPaper = async () => {
+    const convertPaper = async (retryAttempt = 0) => {
       if (!file) {
         setError("请先上传论文文件");
         return;
@@ -195,37 +399,64 @@ export default function Workspace() {
       setProcessingProgress(0);
       setError(null);
       
-      // 模拟进度到75%
+      // 检查网络连接
+      if (!navigator.onLine) {
+        setError(
+          <div>
+            <p>网络连接不可用，请检查您的网络设置</p>
+            <button 
+              onClick={() => convertPaper(retryAttempt + 1)}
+              className="mt-2 px-3 py-1 bg-indigo-100 text-indigo-700 rounded-md text-sm hover:bg-indigo-200 transition"
+            >
+              重试
+            </button>
+          </div>
+        );
+          setIsProcessing(false);
+        return;
+      }
+      
+      // 模拟进度更加平滑
       const progressInterval = setInterval(() => {
         setProcessingProgress(prev => {
-          if (prev >= 75) {
+          if (prev >= 70) {
             clearInterval(progressInterval);
-            return 75;
+            return 70;
           }
-          return prev + 0.5;
+          return prev + (prev < 30 ? 1 : 0.3);
         });
-      }, 100);
+      }, 150);
       
       try {
         // 限制内容长度，防止请求过大
-        const contentToSend = fileContent.substring(0, 5000); // 缩短为5000字符
+        const contentToSend = fileContent.substring(0, 4000);
         
         console.log('发送API请求，内容长度:', contentToSend.length);
         console.log('参数:', parameters);
         
-        // 使用API接口
+        // 添加超时控制
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 50000);
+        
         const response = await axios.post('/api/transform', {
           content: contentToSend,
           parameters
+        }, {
+          signal: controller.signal,
+          onUploadProgress: (progressEvent) => {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            if (percentCompleted > 10) {
+              setProcessingProgress(10 + percentCompleted * 0.2);
+            }
+          }
         });
         
+        clearTimeout(timeoutId);
         console.log('API响应成功:', response.status);
         
-        // API调用完成
         clearInterval(progressInterval);
         setProcessingProgress(95);
         
-        // 最后5%缓慢完成
         const finalInterval = setInterval(() => {
           setProcessingProgress(prev => {
             if (prev >= 100) {
@@ -245,25 +476,39 @@ export default function Workspace() {
         clearInterval(progressInterval);
         console.error('转换过程出错详情:', error);
         
-        // 提供更详细的错误信息
         let errorMessage = "转换过程中发生错误";
+        let retryAllowed = true;
         
-        if (error.response) {
-          // 服务器响应了，但状态码不在2xx范围
-          console.error('服务器响应状态:', error.response.status);
-          console.error('服务器响应数据:', error.response.data);
-          errorMessage = `服务器错误 (${error.response.status}): ${error.response.data.error || '未知错误'}`;
+        if (error.name === 'AbortError' || error.code === 'ECONNABORTED') {
+          errorMessage = "请求超时，请尝试减少内容长度或稍后重试";
+        } else if (error.response) {
+          if (error.response.status === 504) {
+            errorMessage = "处理超时，请尝试减少内容长度或稍后重试";
+          } else {
+            errorMessage = `服务器错误 (${error.response.status}): ${error.response.data.error || '未知错误'}`;
+            if (error.response.status >= 500) {
+              retryAllowed = false;
+            }
+          }
         } else if (error.request) {
-          // 请求已发送但没有收到响应
-          console.error('没有收到服务器响应');
           errorMessage = "服务器没有响应，请检查网络连接";
         } else {
-          // 请求设置时出错
-          console.error('请求设置错误:', error.message);
           errorMessage = `请求错误: ${error.message}`;
         }
         
-        setError(errorMessage);
+        setError(
+          <div>
+            <p>{errorMessage}</p>
+            {retryAllowed && (
+              <button 
+                onClick={() => convertPaper(retryAttempt + 1)}
+                className="mt-2 px-3 py-1 bg-indigo-100 text-indigo-700 rounded-md text-sm hover:bg-indigo-200 transition"
+              >
+                重试转换
+              </button>
+            )}
+          </div>
+        );
         setIsProcessing(false);
       }
     };
@@ -280,11 +525,25 @@ export default function Workspace() {
         });
     };
   
-    // 加载状态指示器组件
+    // 加载状态指示器组件，添加更详细的信息
     const LoadingIndicator = ({ text }) => (
-      <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 flex flex-col items-center justify-center z-10">
-        <div className="w-16 h-16 border-4 border-indigo-200 dark:border-indigo-800 border-t-indigo-600 dark:border-t-indigo-400 rounded-full animate-spin"></div>
-        <p className="mt-4 text-indigo-600 dark:text-indigo-400 font-medium">{text}</p>
+      <div className="absolute inset-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm flex flex-col items-center justify-center z-10">
+        <div className="w-20 h-20 border-4 border-indigo-200 dark:border-indigo-800 border-t-indigo-600 dark:border-t-indigo-400 rounded-full animate-spin"></div>
+        <p className="mt-4 text-lg font-medium text-indigo-600 dark:text-indigo-400">{text}</p>
+        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 max-w-md text-center">
+          {processingProgress < 50 
+            ? "正在处理您的文件，大型文件可能需要更长时间..." 
+            : processingProgress < 90 
+              ? "正在生成易读内容，请耐心等待..." 
+              : "正在优化输出格式，即将完成..."}
+        </p>
+        <div className="mt-4 w-64 bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+          <div 
+            className="bg-gradient-to-r from-indigo-600 to-blue-500 h-2.5 rounded-full transition-all duration-300"
+            style={{ width: `${processingProgress}%` }}
+          />
+        </div>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{Math.round(processingProgress)}%</p>
       </div>
     );
 
@@ -509,7 +768,7 @@ export default function Workspace() {
             {error && (
               <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-lg text-sm">
                 <p className="font-medium">出错了</p>
-                <p>{error}</p>
+                {error}
               </div>
             )}
             
@@ -530,17 +789,13 @@ export default function Workspace() {
             
             {/* 处理进度条 */}
             {isProcessing && (
-              <div className="mt-4">
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 mb-1">
-                  <motion.div 
-                    className="bg-gradient-to-r from-indigo-600 to-blue-500 h-2.5 rounded-full"
-                    initial={{ width: 0 }}
-                    animate={{ width: `${processingProgress}%` }}
-                    transition={{ duration: 0.3 }}
-                  />
-                </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 text-right">{processingProgress}%</p>
-              </div>
+              <LoadingIndicator text={
+                processingProgress < 50 
+                  ? "正在处理您的文件，大型文件可能需要更长时间..." 
+                  : processingProgress < 90 
+                    ? "正在生成易读内容，请耐心等待..." 
+                    : "正在优化输出格式，即将完成..."
+              } />
             )}
           </div>  
           {/* 右侧结果展示区 */}
@@ -594,13 +849,7 @@ export default function Workspace() {
                       <div 
                         className="markdown-content" 
                         dangerouslySetInnerHTML={{ 
-                          __html: convertedText
-                            .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-                            .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-                            .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-                            .replace(/\*\*(.*)\*\*/gim, '<strong>$1</strong>')
-                            .replace(/\*(.*)\*/gim, '<em>$1</em>')
-                            .replace(/\n/gim, '<br />')
+                          __html: renderMarkdown(convertedText)
                         }}
                       />
                     </div>
@@ -617,6 +866,25 @@ export default function Workspace() {
                         </svg>
                         {copied ? '已复制' : '复制'}
                       </motion.button>
+                      
+                      {!isOnline && (
+                        <motion.button
+                          onClick={() => {
+                            if (navigator.onLine) {
+                              convertPaper();
+                            } else {
+                              setError(<p>您当前处于离线状态，请连接网络后重试</p>);
+                            }
+                          }}
+                          whileTap={{ scale: 0.95 }}
+                          className="px-4 py-2 bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-800/40 text-green-700 dark:text-green-300 rounded-lg text-sm font-medium flex items-center transition"
+                        >
+                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          重新尝试
+                        </motion.button>
+                      )}
                       
                       <motion.button
                         whileTap={{ scale: 0.95 }}
@@ -657,10 +925,10 @@ export default function Workspace() {
       {isProcessing && (
         <LoadingIndicator text={
           processingProgress < 50 
-            ? "正在处理您的文件..." 
+            ? "正在处理您的文件，大型文件可能需要更长时间..." 
             : processingProgress < 90 
-              ? "正在生成科技新闻..." 
-              : "即将完成..."
+              ? "正在生成易读内容，请耐心等待..." 
+              : "正在优化输出格式，即将完成..."
         } />
       )}
     </div>

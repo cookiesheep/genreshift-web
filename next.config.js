@@ -15,9 +15,16 @@ const nextConfig = {
   images: {
     domains: ['cdn.jsdelivr.net'],
   },
-  // 删除或禁用optimizeCss
+  // 环境变量配置
+  env: {
+    DASHSCOPE_API_KEY: process.env.DASHSCOPE_API_KEY,
+    DASHSCOPE_API_URL: process.env.DASHSCOPE_API_URL,
+  },
+  // 实验性功能
   experimental: {
-    // optimizeCss: true  // 注释掉或删除这一行
+    // 启用Edge运行时支持
+    runtime: 'nodejs',
+    serverComponentsExternalPackages: ['axios']
   }
 }
 

@@ -1,1 +1,5 @@
-{}
+{
+  "/api/transform/route": "app/api/transform/route.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/workspace/page": "app/workspace/page.js"
+}
