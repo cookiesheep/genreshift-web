@@ -25,6 +25,7 @@ export default function Workspace() {
   const [isOnline, setIsOnline] = useState(true);
   // 添加后备模式状态
   const [fallbackMode, setFallbackMode] = useState(false);
+  const [warning, setWarning] = useState(null);
   
   // 检查网络状态
   useEffect(() => {
@@ -88,7 +89,11 @@ export default function Workspace() {
 
       // 处理PDF文件
   const processPdfFile = (selectedFile) => {
+    if (!selectedFile) return;
+    
     const reader = new FileReader();
+    setFile(selectedFile);
+    
     reader.onload = async function() {
       try {
         // 确保PDF.js已加载
@@ -107,24 +112,47 @@ export default function Workspace() {
           fullText += pageText + '\n\n';
         }
         
-        setFileContent(fullText.substring(0, 100000));
+      // 限制内容长度，太长的内容会导致API超时
+      const maxContentLength = 25000; // 前端预处理，减少到25000字符
+        const content = fullText.substring(0, maxContentLength);
+        
+        if (fullText.length > maxContentLength) {
+        setWarning(`文件内容已被截断至${maxContentLength}字符以避免处理超时。仅处理前${maxContentLength}字符。`);
+      } else {
+        setWarning(null);
+      }
+        
+      setFileContent(content);
         setIsProcessing(false);
       } catch (error) {
         console.error('PDF处理错误:', error);
         // 回退到简单文本提取
         try {
           const text = new TextDecoder().decode(new Uint8Array(reader.result).slice(0, 1000000));
-          setFileContent(`PDF文件内容已提取（简单文本模式）：\n\n${text.substring(0, 100000)}`);
+          
+          // 限制内容长度
+          const maxContentLength = 25000;
+          const content = text.substring(0, maxContentLength);
+          
+          if (text.length > maxContentLength) {
+            setWarning(`文件内容已被截断至${maxContentLength}字符以避免处理超时。仅处理前${maxContentLength}字符。`);
+          } else {
+            setWarning(null);
+          }
+          
+          setFileContent(`PDF文件内容已提取（简单文本模式）：\n\n${content}`);
         } catch (fallbackError) {
           setFileContent("无法解析PDF文件。如果是扫描件或图片PDF，请尝试上传文本版本。");
         }
         setIsProcessing(false);
       }
     };
+    
     reader.onerror = () => {
       setError("PDF文件读取失败");
       setIsProcessing(false);
     };
+    
     reader.readAsArrayBuffer(selectedFile);
   };
 
@@ -170,17 +198,7 @@ export default function Workspace() {
       }
       else {
         // 文本文件处理
-        const reader = new FileReader();
-        reader.onload = () => {
-          const content = reader.result.substring(0, 100000);
-          setFileContent(content);
-          setIsProcessing(false);
-        };
-        reader.onerror = () => {
-          setError("文件读取失败");
-          setIsProcessing(false);
-        };
-        reader.readAsText(selectedFile);
+        processTextFile(selectedFile);
       }
       
       setError(null);
@@ -412,8 +430,16 @@ export default function Workspace() {
             </button>
           </div>
         );
-          setIsProcessing(false);
+        setIsProcessing(false);
         return;
+      }
+      
+      // 进一步限制发送给API的内容长度
+      const maxApiContentLength = 2000; // 保持与服务器端限制一致
+      const contentToSend = fileContent.substring(0, maxApiContentLength);
+      
+      if (fileContent.length > maxApiContentLength) {
+        console.log(`内容已被截断，原始长度：${fileContent.length}，发送长度：${maxApiContentLength}`);
       }
       
       // 模拟进度更加平滑
@@ -428,15 +454,12 @@ export default function Workspace() {
       }, 150);
       
       try {
-        // 限制内容长度，防止请求过大
-        const contentToSend = fileContent.substring(0, 4000);
-        
         console.log('发送API请求，内容长度:', contentToSend.length);
         console.log('参数:', parameters);
         
         // 添加超时控制
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 50000);
+        const timeoutId = setTimeout(() => controller.abort(), 25000); // 25秒超时，与服务器一致
         
         const response = await axios.post('/api/transform', {
           content: contentToSend,
@@ -478,12 +501,15 @@ export default function Workspace() {
         
         let errorMessage = "转换过程中发生错误";
         let retryAllowed = true;
+        let suggestionMessage = null;
         
         if (error.name === 'AbortError' || error.code === 'ECONNABORTED') {
-          errorMessage = "请求超时，请尝试减少内容长度或稍后重试";
+          errorMessage = "请求超时，请尝试减少内容长度";
+          suggestionMessage = "建议：复制文章中最重要的部分（2000字以内）重新尝试";
         } else if (error.response) {
           if (error.response.status === 504) {
-            errorMessage = "处理超时，请尝试减少内容长度或稍后重试";
+            errorMessage = "处理超时，请尝试减少内容长度";
+            suggestionMessage = "建议：复制文章中最重要的部分（2000字以内）重新尝试";
           } else {
             errorMessage = `服务器错误 (${error.response.status}): ${error.response.data.error || '未知错误'}`;
             if (error.response.status >= 500) {
@@ -499,6 +525,7 @@ export default function Workspace() {
         setError(
           <div>
             <p>{errorMessage}</p>
+            {suggestionMessage && <p className="text-sm text-gray-500 mt-1">{suggestionMessage}</p>}
             {retryAllowed && (
               <button 
                 onClick={() => convertPaper(retryAttempt + 1)}
@@ -546,6 +573,30 @@ export default function Workspace() {
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{Math.round(processingProgress)}%</p>
       </div>
     );
+
+    // 文本文件处理逻辑
+    const processTextFile = (selectedFile) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        // 限制内容长度
+        const maxContentLength = 25000;
+        const content = reader.result.substring(0, maxContentLength);
+        
+        if (reader.result.length > maxContentLength) {
+          setWarning(`文件内容已被截断至${maxContentLength}字符以避免处理超时。仅处理前${maxContentLength}字符。`);
+        } else {
+          setWarning(null);
+        }
+        
+        setFileContent(content);
+        setIsProcessing(false);
+      };
+      reader.onerror = () => {
+        setError("文件读取失败");
+        setIsProcessing(false);
+      };
+      reader.readAsText(selectedFile);
+    };
 
     return (
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-gray-800">
@@ -769,6 +820,14 @@ export default function Workspace() {
               <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-lg text-sm">
                 <p className="font-medium">出错了</p>
                 {error}
+              </div>
+            )}
+            
+            {/* 警告提示 - 内容过长 */}
+            {warning && (
+              <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 rounded-lg text-sm">
+                <p className="font-medium">⚠️ 注意</p>
+                <p>{warning}</p>
               </div>
             )}
             

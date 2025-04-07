@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
 
-// 设置更短的超时时间，适应Vercel环境
-const TIMEOUT_MS = 50000; // 50秒，留些余量
+// 减少超时时间以适应Vercel环境限制
+const TIMEOUT_MS = 25000; // 减少到25秒，避免Vercel的30秒限制
 
 // 简单的内存缓存，避免重复请求相同内容
 const responseCache = new Map();
@@ -12,6 +12,8 @@ const CACHE_EXPIRY = 10 * 60 * 1000;
 // 导出配置，设置为Edge Runtime以获得更长的执行时间
 export const config = {
   runtime: 'edge',
+  regions: ['hkg1'], // 指定香港区域，提高中国用户访问速度
+  maxDuration: 60, // 尝试设置最大执行时间
 };
 
 export async function POST(request) {
@@ -20,13 +22,13 @@ export async function POST(request) {
     const start = Date.now();
     const { content, parameters } = await request.json();
     
-    // 内容长度限制 - 减少内容长度以加快响应速度
-    const MAX_CONTENT_LENGTH = 4000; // 限制字符数
+    // 内容长度限制 - 大幅减少内容长度以避免超时
+    const MAX_CONTENT_LENGTH = 2000; // 限制字符数
     const trimmedContent = content.substring(0, MAX_CONTENT_LENGTH);
     
     // 创建缓存键（内容+参数组合）
     const cacheKey = JSON.stringify({
-      content: trimmedContent.substring(0, 100) + trimmedContent.length, // 只用前100字符+长度作为内容标识
+      content: trimmedContent.substring(0, 50) + trimmedContent.length, // 只用前50字符+长度作为内容标识
       parameters
     });
     
@@ -51,51 +53,55 @@ export async function POST(request) {
     
     // 获取环境变量中的API密钥和URL，如果不存在则使用默认值
     // 这样可以确保即使没有设置环境变量也能正常工作
-    const API_KEY = process.env.DASHSCOPE_API_KEY || "sk-364edeb5190543d1ba2d5127d4428e47";
+    const API_KEY = process.env.DASHSCOPE_API_KEY || "sk-1f660ec6e1584c83825ffeed4b838523";
     const API_URL = process.env.DASHSCOPE_API_URL || "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
 
-    // 使用更简单明确的提示词
+    if (!API_KEY) {
+      return NextResponse.json(
+        { error: "API密钥未配置，请检查环境变量设置" },
+        { status: 500 }
+      );
+    }
+
+    // 简化提示词结构，减少处理复杂度
     const promptContent = `
-请将以下学术论文内容转换为易读的科技新闻格式：
+将下面的学术论文内容（${trimmedContent.length}字）转为${parameters.length === 'short' ? '300字左右' : parameters.length === 'medium' ? '500字左右' : '800字左右'}的${parameters.outputStyle === 'news' ? '新闻报道' : parameters.outputStyle === 'blog' ? '博客文章' : '摘要总结'}，使用${parameters.language === 'zh' ? '中文' : '英文'}，重点关注${parameters.focus === 'general' ? '综合内容' : parameters.focus === 'methodology' ? '研究方法' : parameters.focus === 'results' ? '研究结果' : '研究意义'}：
 
-【论文内容】
 ${trimmedContent}
-
-【输出要求】
-风格：${parameters.outputStyle === 'news' ? '新闻报道' : parameters.outputStyle === 'blog' ? '博客文章' : '摘要总结'}
-长度：${parameters.length === 'short' ? '简短(300字左右)' : parameters.length === 'medium' ? '中等(500字左右)' : '详细(800字左右)'}
-重点关注：${parameters.focus === 'general' ? '综合内容' : parameters.focus === 'methodology' ? '研究方法' : parameters.focus === 'results' ? '研究结果' : '研究意义'}
-语言：${parameters.language === 'zh' ? '中文' : '英文'}
-
-请确保转换后的文章结构清晰，语言流畅，保留原文的关键信息，但使其更易于普通读者理解。
     `;
     
     console.log('发送请求到外部API');
     
     try {
-      // 使用较轻量级的模型提高响应速度
-      const selectedModel = parameters.length === 'long' ? "qwen-max" : "qwen-plus";
+      // 使用最轻量级的模型提高响应速度
+      const selectedModel = "qwen-turbo"; // 使用速度最快的模型
       console.log(`选择模型: ${selectedModel}`);
+      
+      // 使用两层超时控制
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
       
       // 直接发送主请求，跳过测试请求以减少超时风险
       const response = await axios.post(API_URL, {
         model: selectedModel,
         messages: [
-          {role: 'system', content: 'You are a helpful assistant specialized in summarizing academic content to make it accessible to general audiences.'},
+          {role: 'system', content: '您是一位专门将学术内容转化为通俗易懂格式的专家。回答简洁直接，不需要废话。'},
           {role: 'user', content: promptContent}
         ],
-        // 添加max_tokens参数限制响应长度，加快响应速度
-        max_tokens: parameters.length === 'short' ? 800 : (parameters.length === 'medium' ? 1200 : 2000),
-        // 调整温度让输出更加稳定
-        temperature: 0.7,
+        // 减少token限制以获得更快的响应
+        max_tokens: parameters.length === 'short' ? 500 : (parameters.length === 'medium' ? 800 : 1200),
+        // 降低温度让输出更加稳定
+        temperature: 0.3,
       }, {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${API_KEY}`
         },
         timeout: TIMEOUT_MS, // 设置axios超时
+        signal: controller.signal,
       });
       
+      clearTimeout(timeoutId);
       console.log('收到外部API响应，处理时间:', Date.now() - start, 'ms');
       
       // 返回处理结果
@@ -123,8 +129,8 @@ ${trimmedContent}
       let errorMessage = "API请求失败";
       let statusCode = 500;
       
-      if (apiError.code === 'ECONNABORTED' || apiError.message.includes('timeout')) {
-        errorMessage = "API请求超时，请稍后再试或减少输入内容";
+      if (apiError.code === 'ECONNABORTED' || apiError.message.includes('timeout') || apiError.name === 'AbortError') {
+        errorMessage = "API请求超时，已大幅减少内容长度，请重试或进一步缩短文本";
         statusCode = 504;
       } else if (apiError.response) {
         statusCode = apiError.response.status;
