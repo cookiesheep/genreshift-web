@@ -26,6 +26,10 @@ export default function Workspace() {
   // 添加后备模式状态
   const [fallbackMode, setFallbackMode] = useState(false);
   const [warning, setWarning] = useState(null);
+  // 在状态变量中添加分段处理相关的状态
+  const [processingSegments, setProcessingSegments] = useState(0);
+  const [totalSegments, setTotalSegments] = useState(0);
+  const [currentSegment, setCurrentSegment] = useState(0);
   
   // 检查网络状态
   useEffect(() => {
@@ -416,6 +420,9 @@ export default function Workspace() {
       setIsProcessing(true);
       setProcessingProgress(0);
       setError(null);
+      setProcessingSegments(0);
+      setTotalSegments(0);
+      setCurrentSegment(0);
       
       // 检查网络连接
       if (!navigator.onLine) {
@@ -434,14 +441,6 @@ export default function Workspace() {
         return;
       }
       
-      // 进一步限制发送给API的内容长度
-      const maxApiContentLength = 2000; // 保持与服务器端限制一致
-      const contentToSend = fileContent.substring(0, maxApiContentLength);
-      
-      if (fileContent.length > maxApiContentLength) {
-        console.log(`内容已被截断，原始长度：${fileContent.length}，发送长度：${maxApiContentLength}`);
-      }
-      
       // 模拟进度更加平滑
       const progressInterval = setInterval(() => {
         setProcessingProgress(prev => {
@@ -454,15 +453,15 @@ export default function Workspace() {
       }, 150);
       
       try {
-        console.log('发送API请求，内容长度:', contentToSend.length);
+        console.log('发送API请求，内容长度:', fileContent.length);
         console.log('参数:', parameters);
         
         // 添加超时控制
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 25000); // 25秒超时，与服务器一致
+        const timeoutId = setTimeout(() => controller.abort(), 25000);
         
         const response = await axios.post('/api/transform', {
-          content: contentToSend,
+          content: fileContent,
           parameters
         }, {
           signal: controller.signal,
@@ -476,6 +475,12 @@ export default function Workspace() {
         
         clearTimeout(timeoutId);
         console.log('API响应成功:', response.status);
+        
+        // 更新分段信息
+        if (response.data.segments) {
+          setTotalSegments(response.data.segments);
+          setProcessingSegments(response.data.segments);
+        }
         
         clearInterval(progressInterval);
         setProcessingProgress(95);
@@ -557,6 +562,11 @@ export default function Workspace() {
       <div className="absolute inset-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm flex flex-col items-center justify-center z-10">
         <div className="w-20 h-20 border-4 border-indigo-200 dark:border-indigo-800 border-t-indigo-600 dark:border-t-indigo-400 rounded-full animate-spin"></div>
         <p className="mt-4 text-lg font-medium text-indigo-600 dark:text-indigo-400">{text}</p>
+        {totalSegments > 0 && (
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+            正在处理第 {currentSegment + 1}/{totalSegments} 段内容
+          </p>
+        )}
         <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 max-w-md text-center">
           {processingProgress < 50 
             ? "正在处理您的文件，大型文件可能需要更长时间..." 
