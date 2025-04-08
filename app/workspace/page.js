@@ -9,6 +9,7 @@ import axios from 'axios';
 import mammoth from 'mammoth';
 // import * as pdfjsLib from 'pdfjs-dist';
 import { renderMarkdown, generateOfflineContent } from '../utils/offlineSupport';
+import { saveToHistory, getDarkMode, setDarkMode } from '../utils/localStorageManager';
 
 export default function Workspace() {
   // 状态管理
@@ -55,14 +56,14 @@ export default function Workspace() {
     language: 'zh', // zh, en
   });
 
-    // 深色模式状态
-    const [darkMode, setDarkMode] = useState(false);
+    // 深色模式状态 - 修改使用 localStorage
+    const [darkMode, setDarkModeState] = useState(false);
 
     // 初始化时读取本地存储的深色模式设置
     useEffect(() => {
       if (typeof window !== 'undefined') {
-        const savedMode = localStorage.getItem('theme') === 'dark';
-        setDarkMode(savedMode);
+        const savedMode = getDarkMode();
+        setDarkModeState(savedMode);
         document.documentElement.classList.toggle('dark', savedMode);
       }
     }, []);
@@ -70,9 +71,8 @@ export default function Workspace() {
     // 切换深色模式
     const toggleDarkMode = () => {
       const newMode = !darkMode;
+      setDarkModeState(newMode);
       setDarkMode(newMode);
-      localStorage.setItem('theme', newMode ? 'dark' : 'light');
-      document.documentElement.classList.toggle('dark', newMode);
     };
   
     // 加载PDF.js
@@ -412,136 +412,90 @@ export default function Workspace() {
   
     // 转换论文
     const convertPaper = async (retryAttempt = 0) => {
-      if (!file) {
-        setError("请先上传论文文件");
+      if (!fileContent) {
+        setError("请先上传或输入论文内容");
         return;
       }
-      
+
       setIsProcessing(true);
       setProcessingProgress(0);
       setError(null);
       setProcessingSegments(0);
       setTotalSegments(0);
       setCurrentSegment(0);
-      
-      // 检查网络连接
-      if (!navigator.onLine) {
-        setError(
-          <div>
-            <p>网络连接不可用，请检查您的网络设置</p>
-            <button 
-              onClick={() => convertPaper(retryAttempt + 1)}
-              className="mt-2 px-3 py-1 bg-indigo-100 text-indigo-700 rounded-md text-sm hover:bg-indigo-200 transition"
-            >
-              重试
-            </button>
-          </div>
-        );
-        setIsProcessing(false);
-        return;
+
+      // 检查内容长度
+      let processedContent = fileContent;
+      if (fileContent.length > 25000) {
+        setWarning("内容超过25000字符，将被截断处理");
+        processedContent = fileContent.substring(0, 25000);
       }
-      
-      // 模拟进度更加平滑
-      const progressInterval = setInterval(() => {
-        setProcessingProgress(prev => {
-          if (prev >= 70) {
-            clearInterval(progressInterval);
-            return 70;
-          }
-          return prev + (prev < 30 ? 1 : 0.3);
-        });
-      }, 150);
-      
-      try {
-        console.log('发送API请求，内容长度:', fileContent.length);
-        console.log('参数:', parameters);
-        
-        // 添加超时控制
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 25000);
-        
-        const response = await axios.post('/api/transform', {
-          content: fileContent,
-          parameters
-        }, {
-          signal: controller.signal,
-          onUploadProgress: (progressEvent) => {
-            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            if (percentCompleted > 10) {
-              setProcessingProgress(10 + percentCompleted * 0.2);
+
+      // 将内容分段
+      const segments = [];
+      const segmentSize = 2000;
+      for (let i = 0; i < processedContent.length; i += segmentSize) {
+        segments.push(processedContent.substring(i, i + segmentSize));
+      }
+
+      setTotalSegments(segments.length);
+      let allResults = [];
+
+      // 分段处理
+      for (let i = 0; i < segments.length; i++) {
+        setCurrentSegment(i);
+        setProcessingProgress((i / segments.length) * 100);
+
+        try {
+          const response = await axios.post('/api/transform', {
+            content: segments[i],
+            parameters: {
+              outputStyle: parameters.outputStyle,
+              length: parameters.length,
+              focus: parameters.focus,
+              language: parameters.language
             }
-          }
-        });
-        
-        clearTimeout(timeoutId);
-        console.log('API响应成功:', response.status);
-        
-        // 更新分段信息
-        if (response.data.segments) {
-          setTotalSegments(response.data.segments);
-          setProcessingSegments(response.data.segments);
-        }
-        
-        clearInterval(progressInterval);
-        setProcessingProgress(95);
-        
-        const finalInterval = setInterval(() => {
-          setProcessingProgress(prev => {
-            if (prev >= 100) {
-              clearInterval(finalInterval);
-              setTimeout(() => {
-                setConvertedText(response.data.result);
-                setShowOriginal(false);
-                setIsProcessing(false);
-              }, 500);
-              return 100;
-            }
-            return prev + 0.2;
           });
-        }, 50);
-        
-      } catch (error) {
-        clearInterval(progressInterval);
-        console.error('转换过程出错详情:', error);
-        
-        let errorMessage = "转换过程中发生错误";
-        let retryAllowed = true;
-        let suggestionMessage = null;
-        
-        if (error.name === 'AbortError' || error.code === 'ECONNABORTED') {
-          errorMessage = "请求超时，请尝试减少内容长度";
-          suggestionMessage = "建议：复制文章中最重要的部分（2000字以内）重新尝试";
-        } else if (error.response) {
-          if (error.response.status === 504) {
-            errorMessage = "处理超时，请尝试减少内容长度";
-            suggestionMessage = "建议：复制文章中最重要的部分（2000字以内）重新尝试";
-          } else {
-            errorMessage = `服务器错误 (${error.response.status}): ${error.response.data.error || '未知错误'}`;
-            if (error.response.status >= 500) {
-              retryAllowed = false;
-            }
+
+          if (response.data.error) {
+            throw new Error(response.data.error);
           }
-        } else if (error.request) {
-          errorMessage = "服务器没有响应，请检查网络连接";
-        } else {
-          errorMessage = `请求错误: ${error.message}`;
-        }
-        
-        setError(
-          <div>
-            <p>{errorMessage}</p>
-            {suggestionMessage && <p className="text-sm text-gray-500 mt-1">{suggestionMessage}</p>}
-            {retryAllowed && (
+
+          allResults.push(response.data.result);
+        } catch (error) {
+          console.error('处理段落时出错:', error);
+          setError(
+            <div>
+              <p>处理第 {i + 1} 段内容时出错: {error.message}</p>
               <button 
                 onClick={() => convertPaper(retryAttempt + 1)}
                 className="mt-2 px-3 py-1 bg-indigo-100 text-indigo-700 rounded-md text-sm hover:bg-indigo-200 transition"
               >
                 重试转换
               </button>
-            )}
-          </div>
-        );
-        setIsProcessing(false);
+            </div>
+          );
+          setIsProcessing(false);
+          return;
+        }
+      }
+
+      // 合并所有结果
+      const finalResult = allResults.join('\n\n');
+      setConvertedText(finalResult);
+      setShowOriginal(false);
+      setIsProcessing(false);
+      setProcessingProgress(100);
+
+      // 保存到历史记录
+      if (file) {
+        saveToHistory({
+          title: file.name,
+          content: finalResult,
+          originalFileName: file.name,
+          outputStyle: parameters.outputStyle,
+          date: new Date().toISOString().slice(0, 10)
+        });
       }
     };
   
@@ -598,7 +552,15 @@ export default function Workspace() {
           setWarning(null);
         }
         
+        // 将内容分段
+        const segments = [];
+        const segmentSize = 2000;
+        for (let i = 0; i < content.length; i += segmentSize) {
+          segments.push(content.substring(i, i + segmentSize));
+        }
+        
         setFileContent(content);
+        setTotalSegments(segments.length);
         setIsProcessing(false);
       };
       reader.onerror = () => {
@@ -966,6 +928,11 @@ export default function Workspace() {
                       </motion.button>
                       
                       <motion.button
+                        onClick={() => {
+                          if (convertedText) {
+                            saveToHistoryRecord();
+                          }
+                        }}
                         whileTap={{ scale: 0.95 }}
                         className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium flex items-center transition"
                       >

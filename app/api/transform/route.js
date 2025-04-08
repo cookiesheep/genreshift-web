@@ -96,74 +96,79 @@ ${content}
   }
 }
 
+// 添加重试机制
+const retryRequest = async (fn, retries = 3) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (i === retries - 1) throw error;
+      console.log(`Retry attempt ${i + 1} failed, retrying...`);
+      await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+    }
+  }
+};
+
 export async function POST(request) {
   try {
-    console.log('=========== API调用开始 ===========');
-    const start = Date.now();
     const { content, parameters } = await request.json();
-    
-    // 内容分段处理
-    const SEGMENT_LENGTH = 2000; // 每段最大长度
-    const segments = [];
-    let currentIndex = 0;
-    
-    // 按段落分割文本
-    const paragraphs = content.split(/\n\s*\n/);
-    let currentSegment = '';
-    
-    for (const paragraph of paragraphs) {
-      if (currentSegment.length + paragraph.length > SEGMENT_LENGTH) {
-        if (currentSegment) {
-          segments.push(currentSegment);
-          currentSegment = '';
-        }
-        // 如果单个段落超过限制，则按句子分割
-        if (paragraph.length > SEGMENT_LENGTH) {
-          const sentences = paragraph.split(/[.!?。！？]+/);
-          for (const sentence of sentences) {
-            if (currentSegment.length + sentence.length > SEGMENT_LENGTH) {
-              segments.push(currentSegment);
-              currentSegment = sentence;
-            } else {
-              currentSegment += sentence;
-            }
-          }
-        } else {
-          currentSegment = paragraph;
-        }
-      } else {
-        currentSegment += (currentSegment ? '\n\n' : '') + paragraph;
+
+    if (!content) {
+      return NextResponse.json(
+        { error: '内容不能为空' },
+        { status: 400 }
+      );
+    }
+
+    if (content.length > 2000) {
+      return NextResponse.json(
+        { error: '内容长度超过限制，请分段处理' },
+        { status: 400 }
+      );
+    }
+
+    const response = await retryRequest(async () => {
+      const result = await processTextSegment(content, parameters, 0, 1);
+      return { result };
+    });
+
+    return NextResponse.json(response);
+  } catch (error) {
+    console.error('API Error:', {
+      message: error.message,
+      code: error.code,
+      status: error.response?.status,
+      data: error.response?.data
+    });
+
+    if (error.response) {
+      // 处理特定的错误状态码
+      switch (error.response.status) {
+        case 401:
+          return NextResponse.json(
+            { error: 'API密钥无效或已过期' },
+            { status: 401 }
+          );
+        case 429:
+          return NextResponse.json(
+            { error: '请求过于频繁，请稍后再试' },
+            { status: 429 }
+          );
+        case 408:
+          return NextResponse.json(
+            { error: '请求超时，请重试' },
+            { status: 408 }
+          );
+        default:
+          return NextResponse.json(
+            { error: '服务器处理请求时出错' },
+            { status: error.response.status }
+          );
       }
     }
-    
-    if (currentSegment) {
-      segments.push(currentSegment);
-    }
-    
-    console.log(`文本已分割为${segments.length}个段落`);
-    
-    // 并行处理所有段落
-    const results = await Promise.all(
-      segments.map((segment, index) => 
-        processTextSegment(segment, parameters, index, segments.length)
-      )
-    );
-    
-    // 合并结果
-    const finalResult = results.join('\n\n');
-    
-    console.log('处理完成，总耗时:', Date.now() - start, 'ms');
-    
-    return NextResponse.json({
-      result: finalResult,
-      segments: segments.length
-    });
-    
-  } catch (error) {
-    console.error('服务器处理错误:', error.message);
-    
+
     return NextResponse.json(
-      { error: "服务器处理错误: " + (error.message || "未知错误") },
+      { error: '服务器内部错误' },
       { status: 500 }
     );
   }

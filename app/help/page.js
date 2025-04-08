@@ -1,594 +1,335 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
+import { getDarkMode, setDarkMode } from '../utils/localStorageManager';
 
 export default function Help() {
-  // 状态管理
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeCategory, setActiveCategory] = useState('faq');
-  const [expandedFaqs, setExpandedFaqs] = useState([0]);
-  const [activeGuide, setActiveGuide] = useState(0);
+  const [activeTab, setActiveTab] = useState('guide');
+  const [darkMode, setDarkModeState] = useState(false);
   
+  // 初始加载
+  useEffect(() => {
+    // 读取暗色模式状态
+    const savedMode = getDarkMode();
+    setDarkModeState(savedMode);
+    document.documentElement.classList.toggle('dark', savedMode);
+  }, []);
+  
+  // 切换深色模式
+  const toggleDarkMode = () => {
+    const newMode = !darkMode;
+    setDarkModeState(newMode);
+    setDarkMode(newMode);
+  };
+
   // FAQ数据
   const faqs = [
     {
-      question: "PaperNews支持哪些格式的论文上传？",
-      answer: "PaperNews目前支持PDF、TXT、DOC/DOCX和ZIP格式的论文上传。您可以通过拖拽或点击上传按钮来上传文件。我们会自动解析文件内容并进行转换。",
-      category: "general"
+      question: "GenreShift可以处理多长的论文？",
+      answer: "GenreShift可以处理大多数标准长度的学术论文。不过，由于API处理限制，我们对内容长度有25,000字符的限制。超出此限制的内容将被截断，并显示警告提示。建议对特别长的论文分段处理或选择最有价值的部分进行转换。"
     },
     {
-      question: "转换后的内容准确度如何？",
-      answer: "我们使用先进的AI模型进行转换，确保核心内容的准确性同时提高可读性。转换质量取决于原始论文的质量和复杂度。用户可以通过调整转换参数来获得更符合需求的结果，也可以随时参考原文进行比对。",
-      category: "general"
+      question: "支持哪些文件格式？",
+      answer: "目前支持PDF格式的学术论文和TXT文本文件。我们正在努力扩展支持更多的文件格式，如DOCX、LaTeX等。"
     },
     {
-      question: "如何设置转换输出的风格和长度？",
-      answer: "在工作台页面上传论文后，您可以在转换参数面板中设置输出风格（新闻、博客或摘要）、内容长度（简短、中等或详细）以及内容关注点（综合、方法、结果或意义）。您也可以在用户中心设置默认参数。",
-      category: "usage"
+      question: "转换的内容保存在哪里？",
+      answer: "所有转换结果都保存在您浏览器的本地存储中，可以在'历史记录'页面查看。请注意，清除浏览器缓存可能会导致历史记录丢失。未来我们将支持云端存储功能。"
     },
     {
-      question: "我可以保存或分享转换结果吗？",
-      answer: "是的，每次转换结果都可以通过界面上的保存按钮保存到您的历史记录中，也可以使用分享按钮生成分享链接发送给他人。此外，您还可以直接复制转换内容或下载为文本文件。",
-      category: "usage"
+      question: "如何选择合适的输出样式？",
+      answer: "您可以根据需求选择不同的输出样式。'新闻'风格适合通俗易懂的表达；'博客'风格更加个性化和生动；'摘要'风格则提供简明扼要的重点内容概述。根据您的目标受众和用途选择合适的风格。"
     },
     {
-      question: "PaperNews可以一次处理多篇论文吗？",
-      answer: "目前，PaperNews一次只能处理一篇论文。不过，您可以使用ZIP格式打包多个相关文件一起上传，系统会尝试整合这些文件内容。我们正在开发批量处理功能，未来版本将支持多篇论文同时转换。",
-      category: "usage"
+      question: "如何提高转换质量？",
+      answer: "要获得更好的转换效果，建议：1) 上传清晰可辨的PDF文件；2) 选择合适的内容关注点，如'研究方法'或'研究结果'；3) 如果原文较长，可以提取最相关的部分进行转换；4) 使用更强大的API模型（可在个人中心设置）。"
     },
     {
-      question: "免费账户有使用限制吗？",
-      answer: "是的，免费账户每月可以转换100篇论文。超过限额后，您需要等到下个月初额度刷新，或者升级到专业版获取更高额度。您可以在用户中心查看当前的使用情况。",
-      category: "account"
+      question: "转换失败怎么办？",
+      answer: "如果转换失败，您可以：1) 检查网络连接是否稳定；2) 尝试重新上传文件；3) 减少文件大小或内容长度；4) 确认文件格式正确且内容可读；5) 如多次尝试仍然失败，可能是我们的API服务暂时遇到问题，请稍后再试。"
     },
     {
-      question: "专业版有哪些额外功能？",
-      answer: "专业版除了提供更高的月度转换配额外，还包括：批量处理功能、更高级的定制化选项、优先处理队列、API访问权限以及无水印导出。详细信息请查看我们的价格页面。",
-      category: "account"
+      question: "如何分享我的转换结果？",
+      answer: "目前您可以通过复制转换后的内容来分享。在转换结果页面，点击'复制到剪贴板'按钮，然后将内容粘贴到您希望的地方。我们计划在未来版本中添加直接分享链接的功能。"
     },
     {
-      question: "如何保障我上传论文的安全性和隐私？",
-      answer: "我们非常重视用户数据安全。您上传的所有论文内容仅用于提供转换服务，不会用于其他目的或与第三方共享。所有数据传输都经过加密，而且您可以随时从账户中删除历史记录。更多信息请参阅我们的隐私政策。",
-      category: "security"
-    },
-  ];
-  
-  // 使用指南数据
-  const guides = [
-    {
-      title: "上传论文",
-      steps: [
-        '访问"工作台"页面，您会看到左侧的上传区域',
-        "将论文文件拖放到上传区域，或点击区域选择文件",
-        "支持的格式包括PDF、TXT、DOC/DOCX和ZIP",
-        "上传后，文件内容会显示在右侧预览区"
-      ],
-      image: "/guides/upload.svg"
-    },
-    {
-      title: "设置转换参数",
-      steps: [
-        "在左侧参数面板中选择所需的输出风格：新闻、博客或摘要",
-        "调整内容长度：简短、中等或详细",
-        "选择内容关注点：综合内容、研究方法、研究结果或研究意义",
-        "根据需要选择输出语言"
-      ],
-      image: "/guides/settings.svg"
-    },
-    {
-      title: "转换与查看结果",
-      steps: [
-        '设置好参数后，点击"开始转换"按钮',
-        "等待转换完成，进度条会显示处理状态",
-        '转换完成后，切换到"转换结果"标签查看内容',
-        "可以使用底部的复制、分享或保存按钮进行后续操作"
-      ],
-      image: "/guides/convert.svg"
-    },
-    {
-      title: "管理历史记录",
-      steps: [
-        '访问"历史记录"页面查看所有转换过的论文',
-        "使用搜索框或筛选器快速找到特定记录",
-        "点击记录可以查看详情，或使用操作按钮进行管理",
-        "可以重新转换、分享、下载或删除历史记录"
-      ],
-      image: "/guides/history.svg"
-    },
-  ];
-  
-  // 筛选FAQ
-  const filteredFaqs = faqs.filter(faq => 
-    faq.question.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    faq.answer.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-  
-  // 切换FAQ展开状态
-  const toggleFaq = (index) => {
-    if (expandedFaqs.includes(index)) {
-      setExpandedFaqs(expandedFaqs.filter(i => i !== index));
-    } else {
-      setExpandedFaqs([...expandedFaqs, index]);
+      question: "GenreShift的API使用限制是什么？",
+      answer: "免费用户每月可以进行100次转换操作。转换次数会在每月初重置。您可以在个人中心查看当前的使用情况。如需更多转换额度，敬请期待我们即将推出的专业版计划。"
     }
-  };
+  ];
+
+  // 用户指南内容
+  const userGuides = [
+    {
+      title: "快速开始",
+      content: (
+        <>
+          <p className="mb-3">
+            GenreShift 是一个将学术论文转换为易于理解的格式的工具。它使用人工智能技术，帮助您更轻松地理解复杂的学术内容。
+          </p>
+          <p className="mb-3">使用 GenreShift 只需几个简单步骤：</p>
+          <ol className="list-decimal pl-6 mb-6 space-y-2">
+            <li>访问<Link href="/workspace" className="text-indigo-600 dark:text-indigo-400 hover:underline">工作台</Link>页面</li>
+            <li>上传PDF格式的学术论文或者输入文本内容</li>
+            <li>选择输出样式（新闻、博客或摘要）</li>
+            <li>选择关注点和语言</li>
+            <li>点击"转换"按钮</li>
+            <li>等待片刻，查看转换结果</li>
+          </ol>
+          <p>转换完成后，您可以复制、分享或保存结果。所有历史转换记录都会保存在<Link href="/history" className="text-indigo-600 dark:text-indigo-400 hover:underline">历史记录</Link>页面。</p>
+        </>
+      )
+    },
+    {
+      title: "上传文件指南",
+      content: (
+        <>
+          <p className="mb-3">GenreShift 支持以下文件类型：</p>
+          <ul className="list-disc pl-6 mb-4 space-y-1">
+            <li>PDF 文件（学术论文、研究报告等）</li>
+            <li>TXT 文本文件</li>
+          </ul>
+          <p className="mb-3">上传文件时请注意：</p>
+          <ul className="list-disc pl-6 mb-4 space-y-2">
+            <li>文件大小不应超过10MB</li>
+            <li>PDF文件应确保文本可选择（非扫描图像）</li>
+            <li>文本长度不应超过25,000字符，超出部分将被截断</li>
+            <li>含有过多公式、表格或图表的文件可能会影响转换质量</li>
+          </ul>
+          <p>您也可以直接复制粘贴文本内容到输入框，而不用上传文件。</p>
+        </>
+      )
+    },
+    {
+      title: "输出样式说明",
+      content: (
+        <>
+          <p className="mb-4">GenreShift 提供三种不同的输出样式，以满足不同的阅读需求：</p>
+          
+          <h4 className="font-semibold mb-2 text-gray-800 dark:text-gray-200">新闻风格</h4>
+          <p className="mb-4 pl-4 border-l-2 border-indigo-300 dark:border-indigo-700">
+            以客观、简明的方式呈现论文内容，类似于新闻报道。重点突出研究的主要发现和重要信息，适合需要快速了解研究概况的读者。
+          </p>
+          
+          <h4 className="font-semibold mb-2 text-gray-800 dark:text-gray-200">博客风格</h4>
+          <p className="mb-4 pl-4 border-l-2 border-indigo-300 dark:border-indigo-700">
+            采用更加个性化、生动的表达方式，使内容更加易读和有趣。加入更多解释性内容和背景信息，适合希望深入但轻松理解研究内容的读者。
+          </p>
+          
+          <h4 className="font-semibold mb-2 text-gray-800 dark:text-gray-200">摘要风格</h4>
+          <p className="mb-4 pl-4 border-l-2 border-indigo-300 dark:border-indigo-700">
+            提供简洁扼要的研究概述，重点突出论文的主要观点、方法和结论。适合需要快速把握论文核心内容的读者。
+          </p>
+          
+          <p>您可以根据自己的需求和偏好选择合适的输出样式。也可以在个人中心设置默认的输出样式。</p>
+        </>
+      )
+    },
+    {
+      title: "历史记录管理",
+      content: (
+        <>
+          <p className="mb-4">GenreShift 会自动保存您的转换历史记录，方便您随时查看和管理。</p>
+          
+          <h4 className="font-semibold mb-2 text-gray-800 dark:text-gray-200">查看历史记录</h4>
+          <p className="mb-3">
+            访问<Link href="/history" className="text-indigo-600 dark:text-indigo-400 hover:underline">历史记录</Link>页面可以查看所有之前转换过的内容。历史记录按时间倒序排列，最新的转换结果显示在最前面。
+          </p>
+          
+          <h4 className="font-semibold mb-2 text-gray-800 dark:text-gray-200">管理历史记录</h4>
+          <p className="mb-3">在历史记录页面，您可以：</p>
+          <ul className="list-disc pl-6 mb-4 space-y-2">
+            <li>查看完整的转换结果</li>
+            <li>删除单条历史记录</li>
+            <li>清空所有历史记录</li>
+            <li>按文件名、日期或内容类型筛选记录</li>
+            <li>对历史记录进行排序</li>
+          </ul>
+          
+          <h4 className="font-semibold mb-2 text-gray-800 dark:text-gray-200">历史记录存储</h4>
+          <p className="mb-3">
+            所有历史记录都保存在浏览器的本地存储中。请注意以下几点：
+          </p>
+          <ul className="list-disc pl-6 mb-4 space-y-2">
+            <li>清除浏览器缓存会导致历史记录丢失</li>
+            <li>历史记录只能在当前设备和浏览器中访问</li>
+            <li>您可以在个人中心设置历史记录的最大保存数量</li>
+          </ul>
+          
+          <p>在未来的版本中，我们计划添加云端同步功能，让您可以在不同设备间同步历史记录。</p>
+        </>
+      )
+    },
+    {
+      title: "隐私与数据安全",
+      content: (
+        <>
+          <p className="mb-4">GenreShift 重视您的隐私和数据安全。以下是我们对您上传内容的处理方式：</p>
+          
+          <h4 className="font-semibold mb-2 text-gray-800 dark:text-gray-200">上传内容处理</h4>
+          <ul className="list-disc pl-6 mb-4 space-y-2">
+            <li>您上传的文件仅用于转换处理，不会被永久存储在我们的服务器上</li>
+            <li>文件内容在处理完成后会立即从服务器中删除</li>
+            <li>转换结果仅保存在您的本地浏览器中</li>
+          </ul>
+          
+          <h4 className="font-semibold mb-2 text-gray-800 dark:text-gray-200">API 调用</h4>
+          <p className="mb-3">
+            我们使用第三方 AI 服务进行内容转换。在此过程中：
+          </p>
+          <ul className="list-disc pl-6 mb-4 space-y-2">
+            <li>您的内容会通过加密连接发送给 AI 服务提供商</li>
+            <li>内容不会被用于训练 AI 模型</li>
+            <li>所有通信均采用 HTTPS 加密协议</li>
+          </ul>
+          
+          <h4 className="font-semibold mb-2 text-gray-800 dark:text-gray-200">本地存储</h4>
+          <p className="mb-3">
+            GenreShift 使用浏览器的本地存储功能来保存：
+          </p>
+          <ul className="list-disc pl-6 mb-4 space-y-2">
+            <li>转换历史记录</li>
+            <li>用户偏好设置</li>
+            <li>界面主题选择</li>
+          </ul>
+          
+          <p className="mb-3">
+            您可以随时删除这些本地存储数据，或者通过清除浏览器缓存完全移除所有数据。
+          </p>
+          
+          <p>我们承诺保护您的数据安全，不会收集或共享您的个人信息或上传内容。</p>
+        </>
+      )
+    }
+  ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* 导航栏 */}
-      <nav className="sticky top-0 z-30 bg-white/80 backdrop-blur-md shadow-sm">
+      <nav className="sticky top-0 z-30 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md shadow-sm">
         <div className="container mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-8">
             <Link href="/" className="text-2xl font-bold bg-gradient-to-r from-indigo-500 to-blue-500 text-transparent bg-clip-text">
-              PaperNews
+              GenreShift
             </Link>
-            <div className="hidden md:flex space-x-6 text-gray-600">
-              <Link href="/workspace" className="hover:text-indigo-600 transition">工作台</Link>
-              <Link href="/history" className="hover:text-indigo-600 transition">历史记录</Link>
-              <Link href="/help" className="text-indigo-600 font-medium">帮助中心</Link>
+            <div className="hidden md:flex space-x-6 text-gray-600 dark:text-gray-300">
+              <Link href="/workspace" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition">工作台</Link>
+              <Link href="/history" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition">历史记录</Link>
+              <Link href="/help" className="text-indigo-600 dark:text-indigo-400 transition">帮助中心</Link>
             </div>
           </div>
           <div className="flex items-center space-x-4">
+            {/* 深色模式切换按钮 */}
+            <button 
+              onClick={toggleDarkMode}
+              className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+            >
+              {darkMode ? (
+                <svg className="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"/>
+                </svg>
+              ) : (
+                <svg className="w-6 h-6 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+                </svg>
+              )}
+            </button>
+            
             <Link href="/profile" className="flex items-center">
               <div className="w-9 h-9 rounded-full bg-gradient-to-r from-indigo-500 to-blue-500 flex items-center justify-center text-white font-medium">
-                用户
+                U
               </div>
             </Link>
           </div>
         </div>
       </nav>
-      
+
       <main className="container mx-auto px-6 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-4">帮助中心</h1>
-          <p className="text-gray-600">找到您问题的答案，了解如何充分利用PaperNews</p>
+          <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-4">帮助中心</h1>
+          <p className="text-gray-600 dark:text-gray-400">了解如何充分利用 GenreShift 的全部功能</p>
         </div>
-        
-        {/* 搜索栏 */}
-        <div className="relative max-w-2xl mx-auto mb-12">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </div>
-          <input
-            type="text"
-            className="block w-full pl-10 pr-3 py-4 border border-gray-300 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 placeholder-gray-500"
-            placeholder="搜索您的问题..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-        
-        {/* 内容导航 */}
-        <div className="mb-8 flex justify-center">
-          <div className="inline-flex p-1 bg-gray-100 rounded-lg">
-            <button
-              onClick={() => setActiveCategory('faq')}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition ${
-                activeCategory === 'faq' 
-                  ? 'bg-white shadow text-indigo-700' 
-                  : 'text-gray-600 hover:text-indigo-600'
+
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden">
+          {/* 选项卡标题 */}
+          <div className="flex border-b border-gray-100 dark:border-gray-700">
+            <button 
+              className={`px-6 py-4 text-sm font-medium transition-colors duration-200 ${
+                activeTab === 'guide' 
+                  ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400' 
+                  : 'text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
               }`}
+              onClick={() => setActiveTab('guide')}
+            >
+              用户指南
+            </button>
+            <button 
+              className={`px-6 py-4 text-sm font-medium transition-colors duration-200 ${
+                activeTab === 'faq' 
+                  ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400' 
+                  : 'text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+              }`}
+              onClick={() => setActiveTab('faq')}
             >
               常见问题
             </button>
-            <button
-              onClick={() => setActiveCategory('guides')}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition ${
-                activeCategory === 'guides' 
-                  ? 'bg-white shadow text-indigo-700' 
-                  : 'text-gray-600 hover:text-indigo-600'
-              }`}
-            >
-              使用指南
-            </button>
-            <button
-              onClick={() => setActiveCategory('contact')}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition ${
-                activeCategory === 'contact' 
-                  ? 'bg-white shadow text-indigo-700' 
-                  : 'text-gray-600 hover:text-indigo-600'
-              }`}
-            >
+          </div>
+
+          {/* 选项卡内容 */}
+          <div className="p-6">
+            {activeTab === 'guide' ? (
+              <div className="space-y-10">
+                {userGuides.map((guide, index) => (
+                  <motion.div 
+                    key={index}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: index * 0.1 }}
+                  >
+                    <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4">{guide.title}</h3>
+                    <div className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                      {guide.content}
+                    </div>
+                    {index < userGuides.length - 1 && (
+                      <div className="border-b border-gray-100 dark:border-gray-700 mt-10"></div>
+                    )}
+                  </motion.div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <p className="text-gray-700 dark:text-gray-300 mb-6">以下是用户常见的问题和答案。如果您没有找到需要的信息，请联系我们的支持团队。</p>
+                
+                {faqs.map((faq, index) => (
+                  <motion.div 
+                    key={index}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: index * 0.1 }}
+                    className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-5"
+                  >
+                    <h3 className="text-lg font-medium text-gray-800 dark:text-gray-100 mb-2">{faq.question}</h3>
+                    <p className="text-gray-600 dark:text-gray-400">{faq.answer}</p>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 联系我们 */}
+        <div className="mt-10 bg-gradient-to-r from-indigo-500 to-blue-500 rounded-xl shadow-md overflow-hidden">
+          <div className="p-8 text-white">
+            <h2 className="text-2xl font-semibold mb-4">需要更多帮助？</h2>
+            <p className="mb-6 opacity-90">如果您在使用 GenreShift 时遇到任何问题，或者有改进建议，请随时联系我们的支持团队。</p>
+            <button className="px-6 py-3 bg-white text-indigo-600 rounded-lg font-medium hover:bg-gray-100 transition">
               联系我们
             </button>
           </div>
         </div>
-        
-        {/* 内容区域 */}
-        <div className="max-w-4xl mx-auto">
-          <AnimatePresence mode="wait">
-            {/* FAQ 内容 */}
-            {activeCategory === 'faq' && (
-              <motion.div
-                key="faq"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-              >
-                {/* FAQ 分类筛选 */}
-                <div className="mb-6 flex flex-wrap gap-2 justify-center">
-                  <button
-                    onClick={() => setSearchTerm('')}
-                    className={`px-3 py-1.5 text-sm font-medium rounded-full transition ${
-                      searchTerm === '' 
-                        ? 'bg-indigo-100 text-indigo-700' 
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    全部
-                  </button>
-                  <button
-                    onClick={() => setSearchTerm('general')}
-                    className={`px-3 py-1.5 text-sm font-medium rounded-full transition ${
-                      searchTerm === 'general' 
-                        ? 'bg-indigo-100 text-indigo-700' 
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    基本问题
-                  </button>
-                  <button
-                    onClick={() => setSearchTerm('usage')}
-                    className={`px-3 py-1.5 text-sm font-medium rounded-full transition ${
-                      searchTerm === 'usage' 
-                        ? 'bg-indigo-100 text-indigo-700' 
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    使用方法
-                  </button>
-                  <button
-                    onClick={() => setSearchTerm('account')}
-                    className={`px-3 py-1.5 text-sm font-medium rounded-full transition ${
-                      searchTerm === 'account' 
-                        ? 'bg-indigo-100 text-indigo-700' 
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    账户相关
-                  </button>
-                  <button
-                    onClick={() => setSearchTerm('security')}
-                    className={`px-3 py-1.5 text-sm font-medium rounded-full transition ${
-                      searchTerm === 'security' 
-                        ? 'bg-indigo-100 text-indigo-700' 
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    安全隐私
-                  </button>
-                </div>
-              
-                {/* FAQ 列表 */}
-                <div className="space-y-4">
-                  {filteredFaqs.length > 0 ? (
-                    filteredFaqs.map((faq, index) => (
-                      <motion.div
-                        key={index}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3, delay: index * 0.1 }}
-                        className="bg-white rounded-xl shadow-sm overflow-hidden"
-                      >
-                        <button
-                          onClick={() => toggleFaq(index)}
-                          className="w-full px-6 py-4 text-left flex justify-between items-center focus:outline-none"
-                        >
-                          <h3 className="text-lg font-medium text-gray-800">{faq.question}</h3>
-                          <svg 
-                            className={`w-5 h-5 text-gray-500 transition-transform ${expandedFaqs.includes(index) ? 'rotate-180' : ''}`} 
-                            fill="none" 
-                            stroke="currentColor" 
-                            viewBox="0 0 24 24" 
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </button>
-                        
-                        <AnimatePresence>
-                          {expandedFaqs.includes(index) && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ duration: 0.3 }}
-                              className="px-6 pb-4"
-                            >
-                              <p className="text-gray-600">{faq.answer}</p>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </motion.div>
-                    ))
-                  ) : (
-                    <motion.div 
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="bg-white rounded-xl shadow-sm p-8 text-center"
-                    >
-                      <div className="mx-auto w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mb-4">
-                        <svg className="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
-                      <h3 className="text-lg font-medium text-gray-800 mb-2">未找到相关问题</h3>
-                      <p className="text-gray-600">请尝试其他关键词，或通过联系我们页面寻求支持。</p>
-                    </motion.div>
-                  )}
-                </div>
-                
-                {/* 未找到答案 */}
-                <div className="mt-12 text-center">
-                  <p className="text-gray-600 mb-4">没有找到您需要的答案？</p>
-                  <button 
-                    onClick={() => setActiveCategory('contact')}
-                    className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium"
-                  >
-                    联系我们
-                  </button>
-                </div>
-              </motion.div>
-            )}
-            
-            {/* 使用指南内容 */}
-            {activeCategory === 'guides' && (
-              <motion.div
-                key="guides"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-              >
-                {/* 指南导航 */}
-                <div className="flex overflow-x-auto pb-2 mb-8 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-                  <div className="flex space-x-2">
-                    {guides.map((guide, index) => (
-                      <button
-                        key={index}
-                        onClick={() => setActiveGuide(index)}
-                        className={`px-4 py-2 whitespace-nowrap text-sm font-medium rounded-lg transition ${
-                          activeGuide === index 
-                            ? 'bg-indigo-600 text-white' 
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                      >
-                        {guide.title}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                
-                {/* 指南内容 */}
-                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={activeGuide}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="p-6"
-                    >
-                      <h2 className="text-2xl font-bold text-gray-800 mb-6">{guides[activeGuide].title}</h2>
-                      
-                      <div className="grid md:grid-cols-2 gap-8 items-center">
-                        {/* 图片（实际项目中应替换为真实图片） */}
-                        <div className="bg-indigo-50 rounded-lg h-64 flex items-center justify-center">
-                          <svg className="w-24 h-24 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                        </div>
-                        
-                        {/* 步骤列表 */}
-                        <div>
-                          <h3 className="text-lg font-medium text-gray-800 mb-4">操作步骤</h3>
-                          <ol className="space-y-4">
-                            {guides[activeGuide].steps.map((step, stepIndex) => (
-                              <motion.li 
-                                key={stepIndex}
-                                initial={{ opacity: 0, x: -10 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ duration: 0.3, delay: stepIndex * 0.1 }}
-                                className="flex"
-                              >
-                                <div className="flex-shrink-0 h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center mr-3 text-indigo-600 font-medium">
-                                  {stepIndex + 1}
-                                </div>
-                                <p className="text-gray-600 pt-1">{step}</p>
-                              </motion.li>
-                            ))}
-                          </ol>
-                        </div>
-                      </div>
-                      
-                      {/* 底部导航 */}
-                      <div className="flex justify-between mt-8 pt-4 border-t border-gray-100">
-                        <button
-                          onClick={() => setActiveGuide(prev => Math.max(0, prev - 1))}
-                          disabled={activeGuide === 0}
-                          className={`px-4 py-2 flex items-center rounded transition ${
-                            activeGuide === 0 
-                              ? 'text-gray-400 cursor-not-allowed' 
-                              : 'text-indigo-600 hover:bg-indigo-50'
-                          }`}
-                        >
-                          <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                          </svg>
-                          上一步
-                        </button>
-                        
-                        <button
-                          onClick={() => setActiveGuide(prev => Math.min(guides.length - 1, prev + 1))}
-                          disabled={activeGuide === guides.length - 1}
-                          className={`px-4 py-2 flex items-center rounded transition ${
-                            activeGuide === guides.length - 1
-                              ? 'text-gray-400 cursor-not-allowed' 
-                              : 'text-indigo-600 hover:bg-indigo-50'
-                          }`}
-                        >
-                          下一步
-                          <svg className="w-5 h-5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </button>
-                      </div>
-                    </motion.div>
-                  </AnimatePresence>
-                </div>
-              </motion.div>
-            )}
-            
-            {/* 联系我们内容 */}
-            {activeCategory === 'contact' && (
-              <motion.div
-                key="contact"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-                className="bg-white rounded-xl shadow-sm p-8"
-              >
-                <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">联系我们</h2>
-                
-                <div className="grid md:grid-cols-2 gap-8 mb-8">
-                  <div>
-                    <h3 className="text-lg font-medium text-gray-800 mb-4">联系方式</h3>
-                    <div className="space-y-4">
-                      <div className="flex items-start">
-                        <div className="flex-shrink-0 h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center mr-3 text-indigo-600">
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-700">电子邮件</h4>
-                          <p className="text-indigo-600">support@papernews.com</p>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-start">
-                        <div className="flex-shrink-0 h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center mr-3 text-indigo-600">
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-700">在线客服</h4>
-                          <p className="text-indigo-600">工作日 9:00-18:00</p>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-start">
-                        <div className="flex-shrink-0 h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center mr-3 text-indigo-600">
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-700">客服热线</h4>
-                          <p className="text-indigo-600">400-123-4567</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h3 className="text-lg font-medium text-gray-800 mb-4">留言表单</h3>
-                    <form className="space-y-4">
-                      <div>
-                        <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-                          您的姓名
-                        </label>
-                        <input
-                          type="text"
-                          id="name"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          placeholder="请输入姓名"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                          电子邮箱
-                        </label>
-                        <input
-                          type="email"
-                          id="email"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          placeholder="请输入邮箱"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label htmlFor="subject" className="block text-sm font-medium text-gray-700 mb-1">
-                          问题类型
-                        </label>
-                        <select
-                          id="subject"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        >
-                          <option value="">请选择问题类型</option>
-                          <option value="usage">使用问题</option>
-                          <option value="account">账户问题</option>
-                          <option value="billing">付款问题</option>
-                          <option value="bug">Bug反馈</option>
-                          <option value="feature">功能建议</option>
-                          <option value="other">其他问题</option>
-                        </select>
-                      </div>
-                      
-                      <div>
-                        <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-1">
-                          详细描述
-                        </label>
-                        <textarea
-                          id="message"
-                          rows={4}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          placeholder="请详细描述您的问题或建议..."
-                        ></textarea>
-                      </div>
-                      
-                      <button
-                        type="submit"
-                        className="w-full px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition text-sm font-medium"
-                      >
-                        提交
-                      </button>
-                    </form>
-                  </div>
-                </div>
-                
-                {/* 常见问题快捷链接 */}
-                <div className="border-t border-gray-100 pt-6 mt-8">
-                  <h3 className="text-lg font-medium text-gray-800 mb-4 text-center">热门问题</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {faqs.slice(0, 4).map((faq, index) => (
-                      <button
-                        key={index}
-                        onClick={() => {
-                          setActiveCategory('faq');
-                          setExpandedFaqs([index]);
-                          setSearchTerm('');
-                        }}
-                        className="text-left p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition"
-                      >
-                        <h4 className="text-sm font-medium text-gray-800">{faq.question}</h4>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
       </main>
     </div>
   );
-} 
+}

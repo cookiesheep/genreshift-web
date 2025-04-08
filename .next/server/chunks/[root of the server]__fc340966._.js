@@ -80,137 +80,167 @@ var __turbopack_async_dependencies__ = __turbopack_handle_async_dependencies__([
 ([__TURBOPACK__imported__module__$5b$externals$5d2f$axios__$5b$external$5d$__$28$axios$2c$__esm_import$29$__] = __turbopack_async_dependencies__.then ? (await __turbopack_async_dependencies__)() : __turbopack_async_dependencies__);
 ;
 ;
-// 设置更短的超时时间，适应Vercel环境
-const TIMEOUT_MS = 50000; // 50秒，留些余量
+// 减少超时时间以适应Vercel环境限制
+const TIMEOUT_MS = 25000; // 减少到25秒，避免Vercel的30秒限制
 // 简单的内存缓存，避免重复请求相同内容
 const responseCache = new Map();
 // 缓存清理时间（10分钟）
 const CACHE_EXPIRY = 10 * 60 * 1000;
 const config = {
-    runtime: 'edge'
+    runtime: 'edge',
+    regions: [
+        'hkg1'
+    ],
+    maxDuration: 60
+};
+// 处理单个文本段落的函数
+async function processTextSegment(content, parameters, segmentIndex, totalSegments) {
+    // 创建缓存键（内容+参数组合）
+    const cacheKey = JSON.stringify({
+        content: content.substring(0, 50) + content.length,
+        parameters,
+        segmentIndex
+    });
+    // 检查缓存
+    if (responseCache.has(cacheKey)) {
+        console.log(`使用缓存结果，节省API调用 (段落 ${segmentIndex + 1}/${totalSegments})`);
+        return responseCache.get(cacheKey);
+    }
+    // 获取环境变量中的API密钥和URL
+    const API_KEY = ("TURBOPACK compile-time value", "sk-1f660ec6e1584c83825ffeed4b838523") || "sk-1f660ec6e1584c83825ffeed4b838523";
+    const API_URL = ("TURBOPACK compile-time value", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions") || "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
+    if ("TURBOPACK compile-time falsy", 0) {
+        "TURBOPACK unreachable";
+    }
+    // 根据段落位置调整提示词
+    let segmentContext = '';
+    if (totalSegments > 1) {
+        if (segmentIndex === 0) {
+            segmentContext = '这是文章的第一部分，请重点关注开头内容。';
+        } else if (segmentIndex === totalSegments - 1) {
+            segmentContext = '这是文章的最后一部分，请重点关注结论和总结。';
+        } else {
+            segmentContext = `这是文章的第${segmentIndex + 1}部分，请保持与前后文的连贯性。`;
+        }
+    }
+    const prompt = `
+${segmentContext}
+将下面的学术论文内容（${content.length}字）转为${parameters.length === 'short' ? '300字左右' : parameters.length === 'medium' ? '500字左右' : '800字左右'}的${parameters.outputStyle === 'news' ? '新闻报道' : parameters.outputStyle === 'blog' ? '博客文章' : '摘要总结'}，使用${parameters.language === 'zh' ? '中文' : '英文'}，重点关注${parameters.focus === 'general' ? '综合内容' : parameters.focus === 'methodology' ? '研究方法' : parameters.focus === 'results' ? '研究结果' : '研究意义'}：
+
+${content}
+  `;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(()=>controller.abort(), TIMEOUT_MS);
+    const response = await __TURBOPACK__imported__module__$5b$externals$5d2f$axios__$5b$external$5d$__$28$axios$2c$__esm_import$29$__["default"].post(API_URL, {
+        model: "qwen-turbo",
+        messages: [
+            {
+                role: 'system',
+                content: '您是一位专门将学术内容转化为通俗易懂格式的专家。回答简洁直接，不需要废话。'
+            },
+            {
+                role: 'user',
+                content: prompt
+            }
+        ],
+        max_tokens: parameters.length === 'short' ? 500 : parameters.length === 'medium' ? 800 : 1200,
+        temperature: 0.3
+    }, {
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${API_KEY}`
+        },
+        timeout: TIMEOUT_MS,
+        signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    if (response.data && response.data.choices && response.data.choices[0]) {
+        const result = response.data.choices[0].message.content;
+        // 保存到缓存
+        responseCache.set(cacheKey, result);
+        // 设置缓存自动过期
+        setTimeout(()=>{
+            responseCache.delete(cacheKey);
+        }, CACHE_EXPIRY);
+        return result;
+    } else {
+        throw new Error("API返回格式异常");
+    }
+}
+// 添加重试机制
+const retryRequest = async (fn, retries = 3)=>{
+    for(let i = 0; i < retries; i++){
+        try {
+            return await fn();
+        } catch (error) {
+            if (i === retries - 1) throw error;
+            console.log(`Retry attempt ${i + 1} failed, retrying...`);
+            await new Promise((resolve)=>setTimeout(resolve, 1000 * (i + 1)));
+        }
+    }
 };
 async function POST(request) {
     try {
-        console.log('=========== API调用开始 ===========');
-        const start = Date.now();
         const { content, parameters } = await request.json();
-        // 内容处理 - 缩短长度进一步提高速度
-        const contentLimit = 4000; // 减少到4000字符
-        const processedContent = content.substring(0, contentLimit);
-        // 创建缓存键（内容+参数组合）
-        const cacheKey = JSON.stringify({
-            content: processedContent.substring(0, 100) + processedContent.length,
-            parameters
-        });
-        // 检查缓存
-        if (responseCache.has(cacheKey)) {
-            console.log('使用缓存结果，节省API调用');
+        if (!content) {
             return __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$server$2e$js__$5b$app$2d$route$5d$__$28$ecmascript$29$__["NextResponse"].json({
-                result: responseCache.get(cacheKey),
-                fromCache: true
-            });
-        }
-        console.log('内容长度:', processedContent.length);
-        console.log('参数:', JSON.stringify(parameters));
-        if (!processedContent) {
-            return __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$server$2e$js__$5b$app$2d$route$5d$__$28$ecmascript$29$__["NextResponse"].json({
-                error: "请提供论文内容"
+                error: '内容不能为空'
             }, {
                 status: 400
             });
         }
-        // 获取环境变量中的API密钥和URL，如果不存在则使用默认值
-        // 这样可以确保即使没有设置环境变量也能正常工作
-        const API_KEY = ("TURBOPACK compile-time value", "sk-364edeb5190543d1ba2d5127d4428e47") || "sk-1f660ec6e1584c83825ffeed4b838523";
-        const API_URL = ("TURBOPACK compile-time value", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions") || "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
-        if ("TURBOPACK compile-time falsy", 0) {
-            "TURBOPACK unreachable";
-        }
-        // 构建提示词
-        const prompt = `
-请将以下学术论文内容转换为易读的科技新闻格式：
-
-【论文内容】
-${processedContent}
-
-【输出要求】
-风格：${parameters.outputStyle === 'news' ? '新闻报道' : parameters.outputStyle === 'blog' ? '博客文章' : '摘要总结'}
-长度：${parameters.length === 'short' ? '简短(300字左右)' : parameters.length === 'medium' ? '中等(500字左右)' : '详细(800字左右)'}
-重点关注：${parameters.focus === 'general' ? '综合内容' : parameters.focus === 'methodology' ? '研究方法' : parameters.focus === 'results' ? '研究结果' : '研究意义'}
-语言：${parameters.language === 'zh' ? '中文' : '英文'}
-
-请确保转换后的文章结构清晰，语言流畅，保留原文的关键信息，但使其更易于普通读者理解。
-    `;
-        console.log('发送请求到API');
-        try {
-            // 使用较轻量级的模型提高响应速度
-            const selectedModel = parameters.length === 'long' ? "qwen-max" : "qwen-plus";
-            console.log(`选择模型: ${selectedModel}`);
-            // 直接发送主请求，跳过测试请求以减少超时风险
-            const response = await __TURBOPACK__imported__module__$5b$externals$5d2f$axios__$5b$external$5d$__$28$axios$2c$__esm_import$29$__["default"].post(API_URL, {
-                model: selectedModel,
-                messages: [
-                    {
-                        role: 'system',
-                        content: 'You are a helpful assistant specialized in summarizing academic content to make it accessible to general audiences.'
-                    },
-                    {
-                        role: 'user',
-                        content: prompt
-                    }
-                ],
-                // 添加max_tokens参数限制响应长度，加快响应速度
-                max_tokens: parameters.length === 'short' ? 800 : parameters.length === 'medium' ? 1200 : 2000,
-                // 调整温度让输出更加稳定
-                temperature: 0.7
-            }, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${API_KEY}`
-                },
-                timeout: TIMEOUT_MS
-            });
-            console.log('收到API响应，处理时间:', Date.now() - start, 'ms');
-            // 处理结果
-            if (response.data && response.data.choices && response.data.choices[0]) {
-                const result = response.data.choices[0].message.content;
-                // 保存到缓存
-                responseCache.set(cacheKey, result);
-                // 设置缓存自动过期
-                setTimeout(()=>{
-                    responseCache.delete(cacheKey);
-                }, CACHE_EXPIRY);
-                return __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$server$2e$js__$5b$app$2d$route$5d$__$28$ecmascript$29$__["NextResponse"].json({
-                    result: result
-                });
-            } else {
-                console.error('API返回格式异常:', JSON.stringify(response.data));
-                throw new Error("API返回格式异常");
-            }
-        } catch (apiError) {
-            console.error('API请求错误:', apiError.message);
-            // 改进错误处理，提供更具体的错误信息
-            let errorMessage = "API请求失败";
-            let statusCode = 500;
-            if (apiError.code === 'ECONNABORTED' || apiError.message.includes('timeout')) {
-                errorMessage = "API请求超时，请稍后再试或减少输入内容";
-                statusCode = 504;
-            } else if (apiError.response) {
-                statusCode = apiError.response.status;
-                errorMessage = `API响应错误(${statusCode}): ${JSON.stringify(apiError.response.data || {})}`;
-            }
-            // 错误日志增强
-            console.error(`请求失败(${statusCode}): ${errorMessage}`);
+        if (content.length > 2000) {
             return __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$server$2e$js__$5b$app$2d$route$5d$__$28$ecmascript$29$__["NextResponse"].json({
-                error: errorMessage
+                error: '内容长度超过限制，请分段处理'
             }, {
-                status: statusCode
+                status: 400
             });
         }
+        const response = await retryRequest(async ()=>{
+            const result = await processTextSegment(content, parameters, 0, 1);
+            return {
+                result
+            };
+        });
+        return __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$server$2e$js__$5b$app$2d$route$5d$__$28$ecmascript$29$__["NextResponse"].json(response);
     } catch (error) {
-        console.error('服务器处理错误:', error.message);
+        console.error('API Error:', {
+            message: error.message,
+            code: error.code,
+            status: error.response?.status,
+            data: error.response?.data
+        });
+        if (error.response) {
+            // 处理特定的错误状态码
+            switch(error.response.status){
+                case 401:
+                    return __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$server$2e$js__$5b$app$2d$route$5d$__$28$ecmascript$29$__["NextResponse"].json({
+                        error: 'API密钥无效或已过期'
+                    }, {
+                        status: 401
+                    });
+                case 429:
+                    return __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$server$2e$js__$5b$app$2d$route$5d$__$28$ecmascript$29$__["NextResponse"].json({
+                        error: '请求过于频繁，请稍后再试'
+                    }, {
+                        status: 429
+                    });
+                case 408:
+                    return __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$server$2e$js__$5b$app$2d$route$5d$__$28$ecmascript$29$__["NextResponse"].json({
+                        error: '请求超时，请重试'
+                    }, {
+                        status: 408
+                    });
+                default:
+                    return __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$server$2e$js__$5b$app$2d$route$5d$__$28$ecmascript$29$__["NextResponse"].json({
+                        error: '服务器处理请求时出错'
+                    }, {
+                        status: error.response.status
+                    });
+            }
+        }
         return __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$server$2e$js__$5b$app$2d$route$5d$__$28$ecmascript$29$__["NextResponse"].json({
-            error: "服务器处理错误: " + (error.message || "未知错误")
+            error: '服务器内部错误'
         }, {
             status: 500
         });

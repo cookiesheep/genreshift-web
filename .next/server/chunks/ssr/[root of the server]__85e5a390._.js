@@ -327,6 +327,11 @@ function Workspace() {
     const [isOnline, setIsOnline] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(true);
     // 添加后备模式状态
     const [fallbackMode, setFallbackMode] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
+    const [warning, setWarning] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(null);
+    // 在状态变量中添加分段处理相关的状态
+    const [processingSegments, setProcessingSegments] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(0);
+    const [totalSegments, setTotalSegments] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(0);
+    const [currentSegment, setCurrentSegment] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(0);
     // 检查网络状态
     (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
         setIsOnline(navigator.onLine);
@@ -369,7 +374,9 @@ function Workspace() {
     }, []);
     // 处理PDF文件
     const processPdfFile = (selectedFile)=>{
+        if (!selectedFile) return;
         const reader = new FileReader();
+        setFile(selectedFile);
         reader.onload = async function() {
             try {
                 // 确保PDF.js已加载
@@ -387,14 +394,30 @@ function Workspace() {
                     const pageText = textContent.items.map((item)=>item.str).join(' ');
                     fullText += pageText + '\n\n';
                 }
-                setFileContent(fullText.substring(0, 100000));
+                // 限制内容长度，太长的内容会导致API超时
+                const maxContentLength = 25000; // 前端预处理，减少到25000字符
+                const content = fullText.substring(0, maxContentLength);
+                if (fullText.length > maxContentLength) {
+                    setWarning(`文件内容已被截断至${maxContentLength}字符以避免处理超时。仅处理前${maxContentLength}字符。`);
+                } else {
+                    setWarning(null);
+                }
+                setFileContent(content);
                 setIsProcessing(false);
             } catch (error) {
                 console.error('PDF处理错误:', error);
                 // 回退到简单文本提取
                 try {
                     const text = new TextDecoder().decode(new Uint8Array(reader.result).slice(0, 1000000));
-                    setFileContent(`PDF文件内容已提取（简单文本模式）：\n\n${text.substring(0, 100000)}`);
+                    // 限制内容长度
+                    const maxContentLength = 25000;
+                    const content = text.substring(0, maxContentLength);
+                    if (text.length > maxContentLength) {
+                        setWarning(`文件内容已被截断至${maxContentLength}字符以避免处理超时。仅处理前${maxContentLength}字符。`);
+                    } else {
+                        setWarning(null);
+                    }
+                    setFileContent(`PDF文件内容已提取（简单文本模式）：\n\n${content}`);
                 } catch (fallbackError) {
                     setFileContent("无法解析PDF文件。如果是扫描件或图片PDF，请尝试上传文本版本。");
                 }
@@ -444,17 +467,7 @@ function Workspace() {
                 reader.readAsArrayBuffer(selectedFile);
             } else {
                 // 文本文件处理
-                const reader = new FileReader();
-                reader.onload = ()=>{
-                    const content = reader.result.substring(0, 100000);
-                    setFileContent(content);
-                    setIsProcessing(false);
-                };
-                reader.onerror = ()=>{
-                    setError("文件读取失败");
-                    setIsProcessing(false);
-                };
-                reader.readAsText(selectedFile);
+                processTextFile(selectedFile);
             }
             setError(null);
         }
@@ -654,6 +667,9 @@ function Workspace() {
         setIsProcessing(true);
         setProcessingProgress(0);
         setError(null);
+        setProcessingSegments(0);
+        setTotalSegments(0);
+        setCurrentSegment(0);
         // 检查网络连接
         if (!navigator.onLine) {
             setError(/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -662,7 +678,7 @@ function Workspace() {
                         children: "网络连接不可用，请检查您的网络设置"
                     }, void 0, false, {
                         fileName: "[project]/app/workspace/page.js",
-                        lineNumber: 406,
+                        lineNumber: 431,
                         columnNumber: 13
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -671,13 +687,13 @@ function Workspace() {
                         children: "重试"
                     }, void 0, false, {
                         fileName: "[project]/app/workspace/page.js",
-                        lineNumber: 407,
+                        lineNumber: 432,
                         columnNumber: 13
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/app/workspace/page.js",
-                lineNumber: 405,
+                lineNumber: 430,
                 columnNumber: 11
             }, this));
             setIsProcessing(false);
@@ -694,15 +710,13 @@ function Workspace() {
             });
         }, 150);
         try {
-            // 限制内容长度，防止请求过大
-            const contentToSend = fileContent.substring(0, 4000);
-            console.log('发送API请求，内容长度:', contentToSend.length);
+            console.log('发送API请求，内容长度:', fileContent.length);
             console.log('参数:', parameters);
             // 添加超时控制
             const controller = new AbortController();
-            const timeoutId = setTimeout(()=>controller.abort(), 50000);
+            const timeoutId = setTimeout(()=>controller.abort(), 25000);
             const response = await __TURBOPACK__imported__module__$5b$externals$5d2f$axios__$5b$external$5d$__$28$axios$2c$__esm_import$29$__["default"].post('/api/transform', {
-                content: contentToSend,
+                content: fileContent,
                 parameters
             }, {
                 signal: controller.signal,
@@ -715,6 +729,11 @@ function Workspace() {
             });
             clearTimeout(timeoutId);
             console.log('API响应成功:', response.status);
+            // 更新分段信息
+            if (response.data.segments) {
+                setTotalSegments(response.data.segments);
+                setProcessingSegments(response.data.segments);
+            }
             clearInterval(progressInterval);
             setProcessingProgress(95);
             const finalInterval = setInterval(()=>{
@@ -736,11 +755,14 @@ function Workspace() {
             console.error('转换过程出错详情:', error);
             let errorMessage = "转换过程中发生错误";
             let retryAllowed = true;
+            let suggestionMessage = null;
             if (error.name === 'AbortError' || error.code === 'ECONNABORTED') {
-                errorMessage = "请求超时，请尝试减少内容长度或稍后重试";
+                errorMessage = "请求超时，请尝试减少内容长度";
+                suggestionMessage = "建议：复制文章中最重要的部分（2000字以内）重新尝试";
             } else if (error.response) {
                 if (error.response.status === 504) {
-                    errorMessage = "处理超时，请尝试减少内容长度或稍后重试";
+                    errorMessage = "处理超时，请尝试减少内容长度";
+                    suggestionMessage = "建议：复制文章中最重要的部分（2000字以内）重新尝试";
                 } else {
                     errorMessage = `服务器错误 (${error.response.status}): ${error.response.data.error || '未知错误'}`;
                     if (error.response.status >= 500) {
@@ -758,8 +780,16 @@ function Workspace() {
                         children: errorMessage
                     }, void 0, false, {
                         fileName: "[project]/app/workspace/page.js",
-                        lineNumber: 501,
+                        lineNumber: 532,
                         columnNumber: 13
+                    }, this),
+                    suggestionMessage && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                        className: "text-sm text-gray-500 mt-1",
+                        children: suggestionMessage
+                    }, void 0, false, {
+                        fileName: "[project]/app/workspace/page.js",
+                        lineNumber: 533,
+                        columnNumber: 35
                     }, this),
                     retryAllowed && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
                         onClick: ()=>convertPaper(retryAttempt + 1),
@@ -767,13 +797,13 @@ function Workspace() {
                         children: "重试转换"
                     }, void 0, false, {
                         fileName: "[project]/app/workspace/page.js",
-                        lineNumber: 503,
+                        lineNumber: 535,
                         columnNumber: 15
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/app/workspace/page.js",
-                lineNumber: 500,
+                lineNumber: 531,
                 columnNumber: 11
             }, this));
             setIsProcessing(false);
@@ -796,7 +826,7 @@ function Workspace() {
                     className: "w-20 h-20 border-4 border-indigo-200 dark:border-indigo-800 border-t-indigo-600 dark:border-t-indigo-400 rounded-full animate-spin"
                 }, void 0, false, {
                     fileName: "[project]/app/workspace/page.js",
-                    lineNumber: 531,
+                    lineNumber: 563,
                     columnNumber: 9
                 }, this),
                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -804,15 +834,29 @@ function Workspace() {
                     children: text
                 }, void 0, false, {
                     fileName: "[project]/app/workspace/page.js",
-                    lineNumber: 532,
+                    lineNumber: 564,
                     columnNumber: 9
+                }, this),
+                totalSegments > 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                    className: "mt-2 text-sm text-gray-500 dark:text-gray-400",
+                    children: [
+                        "正在处理第 ",
+                        currentSegment + 1,
+                        "/",
+                        totalSegments,
+                        " 段内容"
+                    ]
+                }, void 0, true, {
+                    fileName: "[project]/app/workspace/page.js",
+                    lineNumber: 566,
+                    columnNumber: 11
                 }, this),
                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
                     className: "mt-2 text-sm text-gray-500 dark:text-gray-400 max-w-md text-center",
                     children: processingProgress < 50 ? "正在处理您的文件，大型文件可能需要更长时间..." : processingProgress < 90 ? "正在生成易读内容，请耐心等待..." : "正在优化输出格式，即将完成..."
                 }, void 0, false, {
                     fileName: "[project]/app/workspace/page.js",
-                    lineNumber: 533,
+                    lineNumber: 570,
                     columnNumber: 9
                 }, this),
                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -824,12 +868,12 @@ function Workspace() {
                         }
                     }, void 0, false, {
                         fileName: "[project]/app/workspace/page.js",
-                        lineNumber: 541,
+                        lineNumber: 578,
                         columnNumber: 11
                     }, this)
                 }, void 0, false, {
                     fileName: "[project]/app/workspace/page.js",
-                    lineNumber: 540,
+                    lineNumber: 577,
                     columnNumber: 9
                 }, this),
                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -840,15 +884,36 @@ function Workspace() {
                     ]
                 }, void 0, true, {
                     fileName: "[project]/app/workspace/page.js",
-                    lineNumber: 546,
+                    lineNumber: 583,
                     columnNumber: 9
                 }, this)
             ]
         }, void 0, true, {
             fileName: "[project]/app/workspace/page.js",
-            lineNumber: 530,
+            lineNumber: 562,
             columnNumber: 7
         }, this);
+    // 文本文件处理逻辑
+    const processTextFile = (selectedFile)=>{
+        const reader = new FileReader();
+        reader.onload = ()=>{
+            // 限制内容长度
+            const maxContentLength = 25000;
+            const content = reader.result.substring(0, maxContentLength);
+            if (reader.result.length > maxContentLength) {
+                setWarning(`文件内容已被截断至${maxContentLength}字符以避免处理超时。仅处理前${maxContentLength}字符。`);
+            } else {
+                setWarning(null);
+            }
+            setFileContent(content);
+            setIsProcessing(false);
+        };
+        reader.onerror = ()=>{
+            setError("文件读取失败");
+            setIsProcessing(false);
+        };
+        reader.readAsText(selectedFile);
+    };
     return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
         className: "min-h-screen bg-gradient-to-b from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-gray-800",
         children: [
@@ -865,12 +930,12 @@ function Workspace() {
                                 children: "GenreShift"
                             }, void 0, false, {
                                 fileName: "[project]/app/workspace/page.js",
-                                lineNumber: 556,
+                                lineNumber: 617,
                                 columnNumber: 15
                             }, this)
                         }, void 0, false, {
                             fileName: "[project]/app/workspace/page.js",
-                            lineNumber: 555,
+                            lineNumber: 616,
                             columnNumber: 13
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -891,12 +956,12 @@ function Workspace() {
                                             d: "M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"
                                         }, void 0, false, {
                                             fileName: "[project]/app/workspace/page.js",
-                                            lineNumber: 568,
+                                            lineNumber: 629,
                                             columnNumber: 21
                                         }, this)
                                     }, void 0, false, {
                                         fileName: "[project]/app/workspace/page.js",
-                                        lineNumber: 567,
+                                        lineNumber: 628,
                                         columnNumber: 19
                                     }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("svg", {
                                         className: "w-6 h-6 text-gray-600 dark:text-gray-300",
@@ -910,17 +975,17 @@ function Workspace() {
                                             d: "M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
                                         }, void 0, false, {
                                             fileName: "[project]/app/workspace/page.js",
-                                            lineNumber: 572,
+                                            lineNumber: 633,
                                             columnNumber: 21
                                         }, this)
                                     }, void 0, false, {
                                         fileName: "[project]/app/workspace/page.js",
-                                        lineNumber: 571,
+                                        lineNumber: 632,
                                         columnNumber: 19
                                     }, this)
                                 }, void 0, false, {
                                     fileName: "[project]/app/workspace/page.js",
-                                    lineNumber: 562,
+                                    lineNumber: 623,
                                     columnNumber: 15
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$client$2f$app$2d$dir$2f$link$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["default"], {
@@ -929,7 +994,7 @@ function Workspace() {
                                     children: "历史记录"
                                 }, void 0, false, {
                                     fileName: "[project]/app/workspace/page.js",
-                                    lineNumber: 577,
+                                    lineNumber: 638,
                                     columnNumber: 15
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -949,39 +1014,39 @@ function Workspace() {
                                                 d: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
                                             }, void 0, false, {
                                                 fileName: "[project]/app/workspace/page.js",
-                                                lineNumber: 583,
+                                                lineNumber: 644,
                                                 columnNumber: 21
                                             }, this)
                                         }, void 0, false, {
                                             fileName: "[project]/app/workspace/page.js",
-                                            lineNumber: 582,
+                                            lineNumber: 643,
                                             columnNumber: 19
                                         }, this)
                                     }, void 0, false, {
                                         fileName: "[project]/app/workspace/page.js",
-                                        lineNumber: 581,
+                                        lineNumber: 642,
                                         columnNumber: 17
                                     }, this)
                                 }, void 0, false, {
                                     fileName: "[project]/app/workspace/page.js",
-                                    lineNumber: 580,
+                                    lineNumber: 641,
                                     columnNumber: 15
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/app/workspace/page.js",
-                            lineNumber: 560,
+                            lineNumber: 621,
                             columnNumber: 13
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/app/workspace/page.js",
-                    lineNumber: 554,
+                    lineNumber: 615,
                     columnNumber: 11
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/app/workspace/page.js",
-                lineNumber: 553,
+                lineNumber: 614,
                 columnNumber: 9
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -992,7 +1057,7 @@ function Workspace() {
                         children: "论文转换工作台"
                     }, void 0, false, {
                         fileName: "[project]/app/workspace/page.js",
-                        lineNumber: 591,
+                        lineNumber: 652,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1018,17 +1083,17 @@ function Workspace() {
                                                 d: isParameterPanelOpen ? "M15 19l-7-7 7-7" : "M9 5l7 7-7 7"
                                             }, void 0, false, {
                                                 fileName: "[project]/app/workspace/page.js",
-                                                lineNumber: 612,
+                                                lineNumber: 673,
                                                 columnNumber: 17
                                             }, this)
                                         }, void 0, false, {
                                             fileName: "[project]/app/workspace/page.js",
-                                            lineNumber: 605,
+                                            lineNumber: 666,
                                             columnNumber: 15
                                         }, this)
                                     }, void 0, false, {
                                         fileName: "[project]/app/workspace/page.js",
-                                        lineNumber: 600,
+                                        lineNumber: 661,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$framer$2d$motion$2f$dist$2f$es$2f$components$2f$AnimatePresence$2f$index$2e$mjs__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["AnimatePresence"], {
@@ -1052,7 +1117,7 @@ function Workspace() {
                                                     children: "转换参数"
                                                 }, void 0, false, {
                                                     fileName: "[project]/app/workspace/page.js",
-                                                    lineNumber: 625,
+                                                    lineNumber: 686,
                                                     columnNumber: 19
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1065,7 +1130,7 @@ function Workspace() {
                                                                     children: "输出风格"
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/workspace/page.js",
-                                                                    lineNumber: 630,
+                                                                    lineNumber: 691,
                                                                     columnNumber: 23
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1089,18 +1154,18 @@ function Workspace() {
                                                                             children: option.label
                                                                         }, option.id, false, {
                                                                             fileName: "[project]/app/workspace/page.js",
-                                                                            lineNumber: 637,
+                                                                            lineNumber: 698,
                                                                             columnNumber: 27
                                                                         }, this))
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/workspace/page.js",
-                                                                    lineNumber: 631,
+                                                                    lineNumber: 692,
                                                                     columnNumber: 23
                                                                 }, this)
                                                             ]
                                                         }, void 0, true, {
                                                             fileName: "[project]/app/workspace/page.js",
-                                                            lineNumber: 629,
+                                                            lineNumber: 690,
                                                             columnNumber: 21
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1110,7 +1175,7 @@ function Workspace() {
                                                                     children: "输出长度"
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/workspace/page.js",
-                                                                    lineNumber: 653,
+                                                                    lineNumber: 714,
                                                                     columnNumber: 23
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1134,18 +1199,18 @@ function Workspace() {
                                                                             children: option.label
                                                                         }, option.id, false, {
                                                                             fileName: "[project]/app/workspace/page.js",
-                                                                            lineNumber: 660,
+                                                                            lineNumber: 721,
                                                                             columnNumber: 27
                                                                         }, this))
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/workspace/page.js",
-                                                                    lineNumber: 654,
+                                                                    lineNumber: 715,
                                                                     columnNumber: 23
                                                                 }, this)
                                                             ]
                                                         }, void 0, true, {
                                                             fileName: "[project]/app/workspace/page.js",
-                                                            lineNumber: 652,
+                                                            lineNumber: 713,
                                                             columnNumber: 21
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1155,7 +1220,7 @@ function Workspace() {
                                                                     children: "内容关注点"
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/workspace/page.js",
-                                                                    lineNumber: 677,
+                                                                    lineNumber: 738,
                                                                     columnNumber: 23
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("select", {
@@ -1168,7 +1233,7 @@ function Workspace() {
                                                                             children: "综合内容"
                                                                         }, void 0, false, {
                                                                             fileName: "[project]/app/workspace/page.js",
-                                                                            lineNumber: 683,
+                                                                            lineNumber: 744,
                                                                             columnNumber: 25
                                                                         }, this),
                                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
@@ -1176,7 +1241,7 @@ function Workspace() {
                                                                             children: "研究方法"
                                                                         }, void 0, false, {
                                                                             fileName: "[project]/app/workspace/page.js",
-                                                                            lineNumber: 684,
+                                                                            lineNumber: 745,
                                                                             columnNumber: 25
                                                                         }, this),
                                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
@@ -1184,7 +1249,7 @@ function Workspace() {
                                                                             children: "研究结果"
                                                                         }, void 0, false, {
                                                                             fileName: "[project]/app/workspace/page.js",
-                                                                            lineNumber: 685,
+                                                                            lineNumber: 746,
                                                                             columnNumber: 25
                                                                         }, this),
                                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
@@ -1192,19 +1257,19 @@ function Workspace() {
                                                                             children: "研究意义"
                                                                         }, void 0, false, {
                                                                             fileName: "[project]/app/workspace/page.js",
-                                                                            lineNumber: 686,
+                                                                            lineNumber: 747,
                                                                             columnNumber: 25
                                                                         }, this)
                                                                     ]
                                                                 }, void 0, true, {
                                                                     fileName: "[project]/app/workspace/page.js",
-                                                                    lineNumber: 678,
+                                                                    lineNumber: 739,
                                                                     columnNumber: 23
                                                                 }, this)
                                                             ]
                                                         }, void 0, true, {
                                                             fileName: "[project]/app/workspace/page.js",
-                                                            lineNumber: 676,
+                                                            lineNumber: 737,
                                                             columnNumber: 21
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1214,7 +1279,7 @@ function Workspace() {
                                                                     children: "输出语言"
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/workspace/page.js",
-                                                                    lineNumber: 692,
+                                                                    lineNumber: 753,
                                                                     columnNumber: 23
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1234,35 +1299,35 @@ function Workspace() {
                                                                             children: option.label
                                                                         }, option.id, false, {
                                                                             fileName: "[project]/app/workspace/page.js",
-                                                                            lineNumber: 698,
+                                                                            lineNumber: 759,
                                                                             columnNumber: 27
                                                                         }, this))
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/workspace/page.js",
-                                                                    lineNumber: 693,
+                                                                    lineNumber: 754,
                                                                     columnNumber: 23
                                                                 }, this)
                                                             ]
                                                         }, void 0, true, {
                                                             fileName: "[project]/app/workspace/page.js",
-                                                            lineNumber: 691,
+                                                            lineNumber: 752,
                                                             columnNumber: 21
                                                         }, this)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/app/workspace/page.js",
-                                                    lineNumber: 627,
+                                                    lineNumber: 688,
                                                     columnNumber: 19
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/app/workspace/page.js",
-                                            lineNumber: 619,
+                                            lineNumber: 680,
                                             columnNumber: 17
                                         }, this)
                                     }, void 0, false, {
                                         fileName: "[project]/app/workspace/page.js",
-                                        lineNumber: 617,
+                                        lineNumber: 678,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1275,7 +1340,7 @@ function Workspace() {
                                                     ...getInputProps()
                                                 }, void 0, false, {
                                                     fileName: "[project]/app/workspace/page.js",
-                                                    lineNumber: 724,
+                                                    lineNumber: 785,
                                                     columnNumber: 17
                                                 }, this),
                                                 file ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1296,17 +1361,17 @@ function Workspace() {
                                                                     d: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/workspace/page.js",
-                                                                    lineNumber: 730,
+                                                                    lineNumber: 791,
                                                                     columnNumber: 25
                                                                 }, this)
                                                             }, void 0, false, {
                                                                 fileName: "[project]/app/workspace/page.js",
-                                                                lineNumber: 729,
+                                                                lineNumber: 790,
                                                                 columnNumber: 23
                                                             }, this)
                                                         }, void 0, false, {
                                                             fileName: "[project]/app/workspace/page.js",
-                                                            lineNumber: 728,
+                                                            lineNumber: 789,
                                                             columnNumber: 21
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("h3", {
@@ -1314,7 +1379,7 @@ function Workspace() {
                                                             children: file.name
                                                         }, void 0, false, {
                                                             fileName: "[project]/app/workspace/page.js",
-                                                            lineNumber: 733,
+                                                            lineNumber: 794,
                                                             columnNumber: 21
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1326,7 +1391,7 @@ function Workspace() {
                                                             ]
                                                         }, void 0, true, {
                                                             fileName: "[project]/app/workspace/page.js",
-                                                            lineNumber: 734,
+                                                            lineNumber: 795,
                                                             columnNumber: 21
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -1339,13 +1404,13 @@ function Workspace() {
                                                             children: "删除文件"
                                                         }, void 0, false, {
                                                             fileName: "[project]/app/workspace/page.js",
-                                                            lineNumber: 737,
+                                                            lineNumber: 798,
                                                             columnNumber: 21
                                                         }, this)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/app/workspace/page.js",
-                                                    lineNumber: 727,
+                                                    lineNumber: 788,
                                                     columnNumber: 19
                                                 }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Fragment"], {
                                                     children: [
@@ -1364,17 +1429,17 @@ function Workspace() {
                                                                     d: "M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/workspace/page.js",
-                                                                    lineNumber: 752,
+                                                                    lineNumber: 813,
                                                                     columnNumber: 25
                                                                 }, this)
                                                             }, void 0, false, {
                                                                 fileName: "[project]/app/workspace/page.js",
-                                                                lineNumber: 751,
+                                                                lineNumber: 812,
                                                                 columnNumber: 23
                                                             }, this)
                                                         }, void 0, false, {
                                                             fileName: "[project]/app/workspace/page.js",
-                                                            lineNumber: 750,
+                                                            lineNumber: 811,
                                                             columnNumber: 21
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("h3", {
@@ -1382,7 +1447,7 @@ function Workspace() {
                                                             children: isDragActive ? '释放文件以上传' : '拖放或点击上传论文'
                                                         }, void 0, false, {
                                                             fileName: "[project]/app/workspace/page.js",
-                                                            lineNumber: 755,
+                                                            lineNumber: 816,
                                                             columnNumber: 21
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1391,7 +1456,7 @@ function Workspace() {
                                                                 "支持 PDF(文本格式)、TXT、DOCX 和 ZIP 文件",
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("br", {}, void 0, false, {
                                                                     fileName: "[project]/app/workspace/page.js",
-                                                                    lineNumber: 760,
+                                                                    lineNumber: 821,
                                                                     columnNumber: 23
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -1399,13 +1464,13 @@ function Workspace() {
                                                                     children: "注：扫描件或图片PDF可能无法正确提取文本"
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/workspace/page.js",
-                                                                    lineNumber: 761,
+                                                                    lineNumber: 822,
                                                                     columnNumber: 23
                                                                 }, this)
                                                             ]
                                                         }, void 0, true, {
                                                             fileName: "[project]/app/workspace/page.js",
-                                                            lineNumber: 758,
+                                                            lineNumber: 819,
                                                             columnNumber: 21
                                                         }, this)
                                                     ]
@@ -1413,12 +1478,12 @@ function Workspace() {
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/app/workspace/page.js",
-                                            lineNumber: 718,
+                                            lineNumber: 779,
                                             columnNumber: 15
                                         }, this)
                                     }, void 0, false, {
                                         fileName: "[project]/app/workspace/page.js",
-                                        lineNumber: 717,
+                                        lineNumber: 778,
                                         columnNumber: 13
                                     }, this),
                                     error && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1429,14 +1494,38 @@ function Workspace() {
                                                 children: "出错了"
                                             }, void 0, false, {
                                                 fileName: "[project]/app/workspace/page.js",
-                                                lineNumber: 770,
+                                                lineNumber: 831,
                                                 columnNumber: 17
                                             }, this),
                                             error
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/app/workspace/page.js",
-                                        lineNumber: 769,
+                                        lineNumber: 830,
+                                        columnNumber: 15
+                                    }, this),
+                                    warning && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                        className: "mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 rounded-lg text-sm",
+                                        children: [
+                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                                                className: "font-medium",
+                                                children: "⚠️ 注意"
+                                            }, void 0, false, {
+                                                fileName: "[project]/app/workspace/page.js",
+                                                lineNumber: 839,
+                                                columnNumber: 17
+                                            }, this),
+                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                                                children: warning
+                                            }, void 0, false, {
+                                                fileName: "[project]/app/workspace/page.js",
+                                                lineNumber: 840,
+                                                columnNumber: 17
+                                            }, this)
+                                        ]
+                                    }, void 0, true, {
+                                        fileName: "[project]/app/workspace/page.js",
+                                        lineNumber: 838,
                                         columnNumber: 15
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1448,25 +1537,25 @@ function Workspace() {
                                             children: isProcessing ? '正在转换...' : '开始转换'
                                         }, void 0, false, {
                                             fileName: "[project]/app/workspace/page.js",
-                                            lineNumber: 777,
+                                            lineNumber: 846,
                                             columnNumber: 15
                                         }, this)
                                     }, void 0, false, {
                                         fileName: "[project]/app/workspace/page.js",
-                                        lineNumber: 776,
+                                        lineNumber: 845,
                                         columnNumber: 13
                                     }, this),
                                     isProcessing && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(LoadingIndicator, {
                                         text: processingProgress < 50 ? "正在处理您的文件，大型文件可能需要更长时间..." : processingProgress < 90 ? "正在生成易读内容，请耐心等待..." : "正在优化输出格式，即将完成..."
                                     }, void 0, false, {
                                         fileName: "[project]/app/workspace/page.js",
-                                        lineNumber: 792,
+                                        lineNumber: 861,
                                         columnNumber: 15
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/app/workspace/page.js",
-                                lineNumber: 598,
+                                lineNumber: 659,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1481,7 +1570,7 @@ function Workspace() {
                                                 children: "原始论文"
                                             }, void 0, false, {
                                                 fileName: "[project]/app/workspace/page.js",
-                                                lineNumber: 805,
+                                                lineNumber: 874,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -1490,13 +1579,13 @@ function Workspace() {
                                                 children: "转换结果"
                                             }, void 0, false, {
                                                 fileName: "[project]/app/workspace/page.js",
-                                                lineNumber: 815,
+                                                lineNumber: 884,
                                                 columnNumber: 15
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/app/workspace/page.js",
-                                        lineNumber: 804,
+                                        lineNumber: 873,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1509,7 +1598,7 @@ function Workspace() {
                                                     children: file.name
                                                 }, void 0, false, {
                                                     fileName: "[project]/app/workspace/page.js",
-                                                    lineNumber: 832,
+                                                    lineNumber: 901,
                                                     columnNumber: 21
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1517,13 +1606,13 @@ function Workspace() {
                                                     children: fileContent || '正在加载内容...'
                                                 }, void 0, false, {
                                                     fileName: "[project]/app/workspace/page.js",
-                                                    lineNumber: 833,
+                                                    lineNumber: 902,
                                                     columnNumber: 21
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/app/workspace/page.js",
-                                            lineNumber: 831,
+                                            lineNumber: 900,
                                             columnNumber: 19
                                         }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                                             className: "h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-500",
@@ -1541,12 +1630,12 @@ function Workspace() {
                                                         d: "M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"
                                                     }, void 0, false, {
                                                         fileName: "[project]/app/workspace/page.js",
-                                                        lineNumber: 840,
+                                                        lineNumber: 909,
                                                         columnNumber: 23
                                                     }, this)
                                                 }, void 0, false, {
                                                     fileName: "[project]/app/workspace/page.js",
-                                                    lineNumber: 839,
+                                                    lineNumber: 908,
                                                     columnNumber: 21
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1554,13 +1643,13 @@ function Workspace() {
                                                     children: "转换后的内容将显示在这里"
                                                 }, void 0, false, {
                                                     fileName: "[project]/app/workspace/page.js",
-                                                    lineNumber: 842,
+                                                    lineNumber: 911,
                                                     columnNumber: 21
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/app/workspace/page.js",
-                                            lineNumber: 838,
+                                            lineNumber: 907,
                                             columnNumber: 19
                                         }, this) : convertedText ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                                             className: "relative",
@@ -1574,12 +1663,12 @@ function Workspace() {
                                                         }
                                                     }, void 0, false, {
                                                         fileName: "[project]/app/workspace/page.js",
-                                                        lineNumber: 849,
+                                                        lineNumber: 918,
                                                         columnNumber: 23
                                                     }, this)
                                                 }, void 0, false, {
                                                     fileName: "[project]/app/workspace/page.js",
-                                                    lineNumber: 848,
+                                                    lineNumber: 917,
                                                     columnNumber: 21
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1605,19 +1694,19 @@ function Workspace() {
                                                                         d: "M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/app/workspace/page.js",
-                                                                        lineNumber: 865,
+                                                                        lineNumber: 934,
                                                                         columnNumber: 27
                                                                     }, this)
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/workspace/page.js",
-                                                                    lineNumber: 864,
+                                                                    lineNumber: 933,
                                                                     columnNumber: 25
                                                                 }, this),
                                                                 copied ? '已复制' : '复制'
                                                             ]
                                                         }, void 0, true, {
                                                             fileName: "[project]/app/workspace/page.js",
-                                                            lineNumber: 859,
+                                                            lineNumber: 928,
                                                             columnNumber: 23
                                                         }, this),
                                                         !isOnline && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$framer$2d$motion$2f$dist$2f$es$2f$render$2f$components$2f$motion$2f$proxy$2e$mjs__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["motion"].button, {
@@ -1629,7 +1718,7 @@ function Workspace() {
                                                                         children: "您当前处于离线状态，请连接网络后重试"
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/app/workspace/page.js",
-                                                                        lineNumber: 876,
+                                                                        lineNumber: 945,
                                                                         columnNumber: 40
                                                                     }, void 0));
                                                                 }
@@ -1652,19 +1741,19 @@ function Workspace() {
                                                                         d: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/app/workspace/page.js",
-                                                                        lineNumber: 883,
+                                                                        lineNumber: 952,
                                                                         columnNumber: 29
                                                                     }, this)
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/workspace/page.js",
-                                                                    lineNumber: 882,
+                                                                    lineNumber: 951,
                                                                     columnNumber: 27
                                                                 }, this),
                                                                 "重新尝试"
                                                             ]
                                                         }, void 0, true, {
                                                             fileName: "[project]/app/workspace/page.js",
-                                                            lineNumber: 871,
+                                                            lineNumber: 940,
                                                             columnNumber: 25
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$framer$2d$motion$2f$dist$2f$es$2f$render$2f$components$2f$motion$2f$proxy$2e$mjs__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["motion"].button, {
@@ -1686,19 +1775,19 @@ function Workspace() {
                                                                         d: "M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/app/workspace/page.js",
-                                                                        lineNumber: 894,
+                                                                        lineNumber: 963,
                                                                         columnNumber: 27
                                                                     }, this)
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/workspace/page.js",
-                                                                    lineNumber: 893,
+                                                                    lineNumber: 962,
                                                                     columnNumber: 25
                                                                 }, this),
                                                                 "分享"
                                                             ]
                                                         }, void 0, true, {
                                                             fileName: "[project]/app/workspace/page.js",
-                                                            lineNumber: 889,
+                                                            lineNumber: 958,
                                                             columnNumber: 23
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$framer$2d$motion$2f$dist$2f$es$2f$render$2f$components$2f$motion$2f$proxy$2e$mjs__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["motion"].button, {
@@ -1720,31 +1809,31 @@ function Workspace() {
                                                                         d: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/app/workspace/page.js",
-                                                                        lineNumber: 904,
+                                                                        lineNumber: 973,
                                                                         columnNumber: 27
                                                                     }, this)
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/workspace/page.js",
-                                                                    lineNumber: 903,
+                                                                    lineNumber: 972,
                                                                     columnNumber: 25
                                                                 }, this),
                                                                 "保存"
                                                             ]
                                                         }, void 0, true, {
                                                             fileName: "[project]/app/workspace/page.js",
-                                                            lineNumber: 899,
+                                                            lineNumber: 968,
                                                             columnNumber: 23
                                                         }, this)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/app/workspace/page.js",
-                                                    lineNumber: 858,
+                                                    lineNumber: 927,
                                                     columnNumber: 21
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/app/workspace/page.js",
-                                            lineNumber: 847,
+                                            lineNumber: 916,
                                             columnNumber: 19
                                         }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                                             className: "h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-500",
@@ -1762,12 +1851,12 @@ function Workspace() {
                                                         d: "M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"
                                                     }, void 0, false, {
                                                         fileName: "[project]/app/workspace/page.js",
-                                                        lineNumber: 913,
+                                                        lineNumber: 982,
                                                         columnNumber: 23
                                                     }, this)
                                                 }, void 0, false, {
                                                     fileName: "[project]/app/workspace/page.js",
-                                                    lineNumber: 912,
+                                                    lineNumber: 981,
                                                     columnNumber: 21
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1775,49 +1864,49 @@ function Workspace() {
                                                     children: "转换后的内容将显示在这里"
                                                 }, void 0, false, {
                                                     fileName: "[project]/app/workspace/page.js",
-                                                    lineNumber: 915,
+                                                    lineNumber: 984,
                                                     columnNumber: 21
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/app/workspace/page.js",
-                                            lineNumber: 911,
+                                            lineNumber: 980,
                                             columnNumber: 19
                                         }, this)
                                     }, void 0, false, {
                                         fileName: "[project]/app/workspace/page.js",
-                                        lineNumber: 828,
+                                        lineNumber: 897,
                                         columnNumber: 13
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/app/workspace/page.js",
-                                lineNumber: 802,
+                                lineNumber: 871,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/app/workspace/page.js",
-                        lineNumber: 596,
+                        lineNumber: 657,
                         columnNumber: 9
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/app/workspace/page.js",
-                lineNumber: 590,
+                lineNumber: 651,
                 columnNumber: 9
             }, this),
             isProcessing && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(LoadingIndicator, {
                 text: processingProgress < 50 ? "正在处理您的文件，大型文件可能需要更长时间..." : processingProgress < 90 ? "正在生成易读内容，请耐心等待..." : "正在优化输出格式，即将完成..."
             }, void 0, false, {
                 fileName: "[project]/app/workspace/page.js",
-                lineNumber: 926,
+                lineNumber: 995,
                 columnNumber: 9
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/app/workspace/page.js",
-        lineNumber: 551,
+        lineNumber: 612,
         columnNumber: 7
     }, this);
 }
